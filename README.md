@@ -7,20 +7,8 @@ workflows from ordinary Ruby objects.
 
 ## Installation
 
-Add to your Gemfile:
-
-```ruby
-gem "actionflow"
-```
-
-Or install directly:
-
-```bash
-gem install actionflow
-```
-
-The gem is published on [Gemfury](https://gemfury.com). To use it with Bundler,
-add Gemfury as a source in your Gemfile:
+The gem is published on [Gemfury](https://gemfury.com). Add it as a source in
+your Gemfile:
 
 ```ruby
 source "https://gem.fury.io/ljuti/" do
@@ -28,10 +16,10 @@ source "https://gem.fury.io/ljuti/" do
 end
 ```
 
-Or configure it globally for all gems from this account:
+Or install directly from Gemfury:
 
 ```bash
-bundle config gem.fury.io TOKEN_HERE
+gem install actionflow --source https://gem.fury.io/ljuti/
 ```
 
 ## Usage
