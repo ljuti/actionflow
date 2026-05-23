@@ -2,28 +2,16 @@
 
 module Workflow
   module Steps
-    class ReduceCase
+    class ReduceCase < Step
       def initialize(value_fn, branches)
         @value_fn = value_fn
         @branches = branches
       end
 
-      def call(ctx)
-        return ctx if ctx.stop_processing?
-
-        scoped_reduce(ctx, @branches[@value_fn.call(ctx)])
-
-        ctx
-      end
-
       private
 
-      def scoped_reduce(ctx, steps)
-        runner = ActionRunner.default
-        reducer = Reducer.new(action_runner: runner)
-        reducer.reduce(ctx, steps)
-
-        ctx.reset_skip_remaining! unless ctx.failure? || ctx.skip_all_remaining?
+      def execute(ctx)
+        scoped_reduce(ctx, @branches[@value_fn.call(ctx)])
       end
     end
   end

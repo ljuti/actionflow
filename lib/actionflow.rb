@@ -3,6 +3,7 @@
 require_relative "actionflow/version"
 
 module Workflow
+  autoload :Step, "workflow/step"
   autoload :ActionMetadata, "workflow/action_metadata"
   autoload :Configuration, "workflow/configuration"
   autoload :Context, "workflow/context"

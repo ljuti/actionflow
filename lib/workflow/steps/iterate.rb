@@ -2,14 +2,16 @@
 
 module Workflow
   module Steps
-    class Iterate
+    class Iterate < Step
       def initialize(collection_key, steps, item_key: nil)
         @collection_key = collection_key
         @steps = steps
         @item_key = item_key
       end
 
-      def call(ctx)
+      private
+
+      def execute(ctx)
         collection = ctx[@collection_key]
         item_key = @item_key || singularize(@collection_key)
 
@@ -19,20 +21,10 @@ module Workflow
           ctx[item_key] = item
           scoped_reduce(ctx, @steps)
         end
-
-        ctx
       end
-
-      private
 
       def singularize(key)
         key.to_s.sub(/s\z/, "")
-      end
-
-      def scoped_reduce(ctx, steps)
-        runner = ActionRunner.default
-        reducer = Reducer.new(action_runner: runner)
-        reducer.reduce(ctx, steps)
       end
     end
   end

@@ -77,17 +77,17 @@ RSpec.describe Workflow::Steps::Iterate do
     expect(ran).to eq(false)
   end
 
-  it "breaks on skip_remaining" do
+  it "scopes skip_remaining to current iteration" do
     count = 0
     step = described_class.new(:items, [->(ctx) {
       count += 1
-      ctx.skip_remaining! if count >= 2
+      ctx.skip_remaining! if ctx[:item] == 2
       ctx
     }])
     ctx = Workflow::Context.new(items: [1, 2, 3, 4])
     step.call(ctx)
-    expect(count).to eq(2)
-    expect(ctx).to be_skip_remaining
+    expect(count).to eq(4)
+    expect(ctx).not_to be_skip_remaining
   end
 
   it "singularizes collection key by removing trailing s" do

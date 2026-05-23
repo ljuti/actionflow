@@ -303,7 +303,9 @@ session.reduce(step1, step2, step3)
 
 ## 9. Control-Flow Steps
 
-Each control-flow construct is a dedicated class in `Workflow::Steps::*`.
+Each control-flow construct is a dedicated class in `Workflow::Steps::*`,
+inheriting from `Workflow::Step`, which provides the `stop_processing?` guard
+and `scoped_reduce` (nested reduction with skip-scope reset).
 
 ### 9.1 Step inventory
 
