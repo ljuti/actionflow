@@ -207,4 +207,17 @@ RSpec.describe Workflow::OrganizerSession do
 
     Workflow.configuration.logger = original_logger
   end
+
+  it "passes capture_exceptions config to ActionRunner" do
+    original = Workflow.configuration.capture_exceptions
+    Workflow.configuration.capture_exceptions = true
+
+    expect(Workflow::ActionRunner).to receive(:new).with(
+      hash_including(capture_exceptions: true)
+    ).and_call_original
+
+    session.reduce(->(ctx) { ctx })
+
+    Workflow.configuration.capture_exceptions = original
+  end
 end

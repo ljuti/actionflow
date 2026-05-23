@@ -239,4 +239,42 @@ RSpec.describe Workflow::Action do
       end
     end
   end
+
+  describe "#describe" do
+    it "returns contract metadata" do
+      action = TestAction.new
+      result = action.describe
+      expect(result).to eq(
+        name: "TestAction",
+        expects: [:input],
+        promises: [:output]
+      )
+    end
+
+    it "returns fresh arrays not shared references" do
+      action = TestAction.new
+      result1 = action.describe
+      result2 = action.describe
+      expect(result1[:expects]).not_to equal(result2[:expects])
+      expect(result1[:promises]).not_to equal(result2[:promises])
+    end
+
+    it "returns empty arrays for action with no contract" do
+      stub_const("NoContractAction", Class.new do
+        include Workflow::Action
+
+        def call(ctx)
+        end
+      end)
+
+      result = NoContractAction.new.describe
+      expect(result[:expects]).to eq([])
+      expect(result[:promises]).to eq([])
+    end
+
+    it "includes class name" do
+      result = TestAction.new.describe
+      expect(result[:name]).to eq("TestAction")
+    end
+  end
 end
