@@ -205,8 +205,14 @@ RSpec.describe Workflow::Organizer do
     it "reduce passes steps as individual arguments via splat" do
       results = []
       result = organizer.reduce(
-        ->(ctx) { results << :a; ctx },
-        ->(ctx) { results << :b; ctx }
+        ->(ctx) {
+          results << :a
+          ctx
+        },
+        ->(ctx) {
+          results << :b
+          ctx
+        }
       )
       expect(results).to eq(%i[a b])
       expect(result).to be_success

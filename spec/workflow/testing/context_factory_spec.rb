@@ -285,7 +285,7 @@ RSpec.describe Workflow::Testing::ContextFactory do
 
     array_subclass = Class.new(Array) {
       def initialize(items)
-        super(items)
+        super
       end
     }.new([inner_step])
 

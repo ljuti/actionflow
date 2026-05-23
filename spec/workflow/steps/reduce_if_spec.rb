@@ -132,7 +132,6 @@ RSpec.describe Workflow::Steps::ReduceIf do
     expect(condition_called).to eq(false)
   end
 
-
   it "runs action steps through ActionRunner" do
     action = Class.new do
       include Workflow::Action

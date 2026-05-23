@@ -142,10 +142,10 @@ RSpec.describe Workflow::Steps::ReduceUntil do
     expect(condition_called).to eq(false)
   end
 
-
   it "runs action steps through ActionRunner" do
     action = Class.new do
       include Workflow::Action
+
       promises :done
       def call(ctx)
         ctx[:done] = true

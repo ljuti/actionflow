@@ -166,6 +166,7 @@ RSpec.describe Workflow::Steps::WithCallback do
   it "runs action steps through ActionRunner" do
     action = Class.new do
       include Workflow::Action
+
       promises :done
       def call(ctx)
         ctx[:done] = true
@@ -180,6 +181,7 @@ RSpec.describe Workflow::Steps::WithCallback do
   it "callback runs action steps through ActionRunner" do
     action = Class.new do
       include Workflow::Action
+
       promises :cb_done
       def call(ctx)
         ctx[:cb_done] = true
