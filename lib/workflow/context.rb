@@ -43,10 +43,10 @@ module Workflow
       !success?
     end
 
-    def fail!(message = nil, error_code: nil, **_options)
+    def fail!(message = nil, error_code: nil, **options)
       @success = false
-      @message = message
       @error_code = error_code
+      @message = localize(message, options)
     end
 
     def succeed!(message = nil)
@@ -95,6 +95,13 @@ module Workflow
     def resolve_alias(key)
       key = key.to_sym
       @aliases.fetch(key, key)
+    end
+
+    def localize(message, options)
+      adapter = Workflow.configuration.localization_adapter
+      return message if adapter.nil?
+
+      adapter.failure(message, nil, options)
     end
   end
 end
