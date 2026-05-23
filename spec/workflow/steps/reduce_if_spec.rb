@@ -123,4 +123,28 @@ RSpec.describe Workflow::Steps::ReduceIf do
     step.call(ctx)
     expect(ctx[:ran]).to eq(true)
   end
+  it "does not evaluate condition when ctx is already stopped" do
+    condition_called = false
+    step = described_class.new(->(_ctx) { condition_called = true }, [->(ctx) { ctx }])
+    ctx = Workflow::Context.new
+    ctx.fail!
+    step.call(ctx)
+    expect(condition_called).to eq(false)
+  end
+
+
+  it "runs action steps through ActionRunner" do
+    action = Class.new do
+      include Workflow::Action
+
+      promises :done
+      def call(ctx)
+        ctx[:done] = true
+      end
+    end.new
+    step = described_class.new(->(_ctx) { true }, [action])
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx[:done]).to eq(true)
+  end
 end

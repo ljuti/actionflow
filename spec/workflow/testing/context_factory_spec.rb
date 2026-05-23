@@ -168,8 +168,14 @@ RSpec.describe Workflow::Testing::ContextFactory do
     callable_ran = false
     array_step_ran = false
 
-    callable_step = ->(ctx) { callable_ran = true; ctx[:from_callable] = true }
-    array_step = ->(ctx) { array_step_ran = true; ctx[:from_array] = true }
+    callable_step = ->(ctx) {
+      callable_ran = true
+      ctx[:from_callable] = true
+    }
+    array_step = ->(ctx) {
+      array_step_ran = true
+      ctx[:from_array] = true
+    }
 
     context_ivar = Workflow::Context.new(unrelated: true)
     plain_string = "not a step"
@@ -197,7 +203,10 @@ RSpec.describe Workflow::Testing::ContextFactory do
 
   it "flattens nested arrays of steps" do
     inner_ran = false
-    inner_step = ->(ctx) { inner_ran = true; ctx[:inner] = true }
+    inner_step = ->(ctx) {
+      inner_ran = true
+      ctx[:inner] = true
+    }
 
     target = ->(ctx) { ctx[:done] = true }
 

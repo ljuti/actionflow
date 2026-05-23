@@ -130,4 +130,30 @@ RSpec.describe Workflow::Steps::ReduceWhile do
     expect(ctx).to be_skip_all_remaining
     expect(ctx).to be_skip_remaining
   end
+  it "does not evaluate condition when ctx is already stopped" do
+    condition_called = false
+    step = described_class.new(
+      ->(_ctx) { condition_called = true },
+      [->(ctx) { ctx }]
+    )
+    ctx = Workflow::Context.new
+    ctx.fail!
+    step.call(ctx)
+    expect(condition_called).to eq(false)
+  end
+
+
+  it "runs action steps through ActionRunner" do
+    action = Class.new do
+      include Workflow::Action
+      promises :done
+      def call(ctx)
+        ctx[:done] = true
+      end
+    end.new
+    step = described_class.new(->(ctx) { !ctx.key?(:done) }, [action])
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx[:done]).to eq(true)
+  end
 end

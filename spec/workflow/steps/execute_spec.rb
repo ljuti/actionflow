@@ -28,4 +28,9 @@ RSpec.describe Workflow::Steps::Execute do
     step.call(ctx)
     expect(ctx[:added]).to eq(true)
   end
+  it "returns ctx even when block returns a different value" do
+    step = described_class.new(->(_ctx) { "not ctx" })
+    ctx = Workflow::Context.new
+    expect(step.call(ctx)).to equal(ctx)
+  end
 end

@@ -23,14 +23,11 @@ module Workflow
       private
 
       def scoped_reduce(ctx, steps)
-        ctx.reset_skip_remaining!
-
         runner = ActionRunner.default
         reducer = Reducer.new(action_runner: runner)
         reducer.reduce(ctx, steps)
 
         ctx.reset_skip_remaining! unless ctx.failure? || ctx.skip_all_remaining?
-        ctx
       end
     end
   end

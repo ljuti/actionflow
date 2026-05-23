@@ -26,7 +26,7 @@ module Workflow
       private
 
       def singularize(key)
-        key.to_s.sub(/s\z/, "").to_sym
+        key.to_s.sub(/s\z/, "")
       end
 
       def scoped_reduce(ctx, steps)

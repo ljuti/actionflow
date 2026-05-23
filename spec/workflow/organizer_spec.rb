@@ -17,7 +17,6 @@ RSpec.describe Workflow::Organizer do
       expect(session).to be_a(Workflow::OrganizerSession)
     end
 
-
     it "works without arguments" do
       result = organizer.with.reduce([])
       expect(result).to be_success
@@ -88,14 +87,20 @@ RSpec.describe Workflow::Organizer do
 
     # Kill: reduce_if constructor arg mutations — condition and steps must be wired
     it "reduce_if runs steps when condition is true" do
-      step = organizer.reduce_if(->(ctx) { true }, [->(ctx) { ctx[:ran] = true; ctx }])
+      step = organizer.reduce_if(->(ctx) { true }, [->(ctx) {
+        ctx[:ran] = true
+        ctx
+      }])
       ctx = Workflow::Context.new
       step.call(ctx)
       expect(ctx[:ran]).to eq(true)
     end
 
     it "reduce_if skips steps when condition is false" do
-      step = organizer.reduce_if(->(ctx) { false }, [->(ctx) { ctx[:ran] = true; ctx }])
+      step = organizer.reduce_if(->(ctx) { false }, [->(ctx) {
+        ctx[:ran] = true
+        ctx
+      }])
       ctx = Workflow::Context.new
       step.call(ctx)
       expect(ctx[:ran]).to be_nil
@@ -110,8 +115,14 @@ RSpec.describe Workflow::Organizer do
     it "reduce_if_else runs if branch when condition is true" do
       step = organizer.reduce_if_else(
         ->(ctx) { true },
-        [->(ctx) { ctx[:branch] = :if; ctx }],
-        [->(ctx) { ctx[:branch] = :else; ctx }]
+        [->(ctx) {
+          ctx[:branch] = :if
+          ctx
+        }],
+        [->(ctx) {
+          ctx[:branch] = :else
+          ctx
+        }]
       )
       ctx = Workflow::Context.new
       step.call(ctx)
@@ -121,8 +132,14 @@ RSpec.describe Workflow::Organizer do
     it "reduce_if_else runs else branch when condition is false" do
       step = organizer.reduce_if_else(
         ->(ctx) { false },
-        [->(ctx) { ctx[:branch] = :if; ctx }],
-        [->(ctx) { ctx[:branch] = :else; ctx }]
+        [->(ctx) {
+          ctx[:branch] = :if
+          ctx
+        }],
+        [->(ctx) {
+          ctx[:branch] = :else
+          ctx
+        }]
       )
       ctx = Workflow::Context.new
       step.call(ctx)
@@ -137,7 +154,10 @@ RSpec.describe Workflow::Organizer do
     # Kill: iterate constructor arg mutations — collection_key and steps wired
     it "iterate runs steps for each item in the collection" do
       results = []
-      step = organizer.iterate(:items, [->(ctx) { results << ctx[:item]; ctx }])
+      step = organizer.iterate(:items, [->(ctx) {
+        results << ctx[:item]
+        ctx
+      }])
       ctx = Workflow::Context.new(items: [:a, :b, :c])
       step.call(ctx)
       expect(results).to eq([:a, :b, :c])
@@ -158,14 +178,20 @@ RSpec.describe Workflow::Organizer do
     # Kill: execute constructor arg mutations — block must be wired
     it "execute runs the given block" do
       ran = false
-      step = organizer.execute { |ctx| ran = true; ctx }
+      step = organizer.execute { |ctx|
+        ran = true
+        ctx
+      }
       step.call(Workflow::Context.new)
       expect(ran).to eq(true)
     end
 
     it "execute accepts a code block argument" do
       ran = false
-      block = ->(ctx) { ran = true; ctx }
+      block = ->(ctx) {
+        ran = true
+        ctx
+      }
       step = organizer.execute(block)
       step.call(Workflow::Context.new)
       expect(ran).to eq(true)

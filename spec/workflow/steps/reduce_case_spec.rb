@@ -150,4 +150,43 @@ RSpec.describe Workflow::Steps::ReduceCase do
     expect(ctx).to be_skip_all_remaining
     expect(ctx).to be_skip_remaining
   end
+  it "does not evaluate value function when ctx is already stopped" do
+    value_called = false
+    step = described_class.new(
+      ->(_ctx) { value_called = true },
+      {admin: [->(ctx) { ctx }]}
+    )
+    ctx = Workflow::Context.new
+    ctx.fail!
+    step.call(ctx)
+    expect(value_called).to eq(false)
+  end
+
+
+  it "runs action steps through ActionRunner" do
+    action = Class.new do
+      include Workflow::Action
+      promises :done
+      def call(ctx)
+        ctx[:done] = true
+      end
+    end.new
+    step = described_class.new(
+      ->(_ctx) { :admin },
+      {admin: [action]}
+    )
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx[:done]).to eq(true)
+  end
+  it "does not reset skip_remaining when no branch matches" do
+    step = described_class.new(
+      ->(_ctx) { :unknown },
+      {admin: [->(ctx) { ctx }]}
+    )
+    ctx = Workflow::Context.new
+    ctx.skip_remaining!
+    step.call(ctx)
+    expect(ctx).to be_skip_remaining
+  end
 end

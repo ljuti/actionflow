@@ -118,4 +118,28 @@ RSpec.describe Workflow::Steps::Iterate do
     step.call(ctx)
     expect(ctx.keys).to include(:item)
   end
+  it "does not set item context after failure stops processing" do
+    step = described_class.new(:items, [->(ctx) {
+      ctx.fail! if ctx[:item] == 2
+      ctx
+    }])
+    ctx = Workflow::Context.new(items: [1, 2, 3])
+    step.call(ctx)
+    expect(ctx[:item]).to eq(2)
+  end
+
+  it "runs action steps through ActionRunner" do
+    action = Class.new do
+      include Workflow::Action
+
+      promises :processed
+      def call(ctx)
+        ctx[:processed] = true
+      end
+    end.new
+    step = described_class.new(:items, [action])
+    ctx = Workflow::Context.new(items: [1])
+    step.call(ctx)
+    expect(ctx[:processed]).to eq(true)
+  end
 end

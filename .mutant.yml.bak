@@ -7,8 +7,11 @@ requires:
 integration:
   name: rspec
 coverage_criteria:
-  timeout: true
+  timeout: false
   process_abort: false
   test_result: true
 mutation:
   timeout: 10.0
+matcher:
+  subjects:
+    - Workflow*

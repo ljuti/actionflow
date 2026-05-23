@@ -162,4 +162,33 @@ RSpec.describe Workflow::Steps::WithCallback do
     result = ctx[:cb].call(callback_ctx)
     expect(result).to equal(callback_ctx)
   end
+
+  it "runs action steps through ActionRunner" do
+    action = Class.new do
+      include Workflow::Action
+      promises :done
+      def call(ctx)
+        ctx[:done] = true
+      end
+    end.new
+    step = described_class.new(:callback, [action], [])
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx[:done]).to eq(true)
+  end
+
+  it "callback runs action steps through ActionRunner" do
+    action = Class.new do
+      include Workflow::Action
+      promises :cb_done
+      def call(ctx)
+        ctx[:cb_done] = true
+      end
+    end.new
+    step = described_class.new(:cb, [], [action])
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    ctx[:cb].call(ctx)
+    expect(ctx[:cb_done]).to eq(true)
+  end
 end

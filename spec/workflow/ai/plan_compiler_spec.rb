@@ -102,7 +102,7 @@ RSpec.describe Workflow::Ai::PlanCompiler do
     if_step = steps[0]
     # The condition is a lambda; we can test it via the ReduceIf internals
     # by running the compiled step against a context
-    ctx = Workflow::Context.new(status: "approved")
+    Workflow::Context.new(status: "approved")
     # ReduceIf checks condition against context data
     expect(if_step).to be_a(Workflow::Steps::ReduceIf)
   end

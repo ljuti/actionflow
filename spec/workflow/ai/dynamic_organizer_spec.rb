@@ -103,9 +103,18 @@ RSpec.describe Workflow::Ai::DynamicOrganizer do
   it "runs all steps in order" do
     order = []
     organizer = described_class.new(steps: [
-      ->(ctx) { order << 1; ctx },
-      ->(ctx) { order << 2; ctx },
-      ->(ctx) { order << 3; ctx }
+      ->(ctx) {
+        order << 1
+        ctx
+      },
+      ->(ctx) {
+        order << 2
+        ctx
+      },
+      ->(ctx) {
+        order << 3
+        ctx
+      }
     ])
 
     organizer.call

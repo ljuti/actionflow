@@ -87,7 +87,10 @@ RSpec.describe Workflow::Reducer do
   # Kill: Array(steps) — exercise with bare non-array step
   it "accepts a single step without array wrapping" do
     called = false
-    reducer.reduce(Workflow::Context.new, ->(ctx) { called = true; ctx })
+    reducer.reduce(Workflow::Context.new, ->(ctx) {
+      called = true
+      ctx
+    })
     expect(called).to eq(true)
   end
 
@@ -144,7 +147,10 @@ RSpec.describe Workflow::Reducer do
     it "does not execute steps after rollback via break" do
       order = []
       s1 = ->(ctx) { ctx.fail_with_rollback!("boom") }
-      s2 = ->(ctx) { order << 2; ctx }
+      s2 = ->(ctx) {
+        order << 2
+        ctx
+      }
       reducer.reduce(Workflow::Context.new, [s1, s2])
       expect(order).to eq([])
     end
@@ -182,8 +188,14 @@ RSpec.describe Workflow::Reducer do
       }
 
       r = described_class.new(action_runner: runner, rollback_strategy: custom_strategy)
-      s1 = ->(ctx) { ctx[:a] = 1; ctx }
-      s2 = ->(ctx) { ctx[:b] = 2; ctx }
+      s1 = ->(ctx) {
+        ctx[:a] = 1
+        ctx
+      }
+      s2 = ->(ctx) {
+        ctx[:b] = 2
+        ctx
+      }
       s3 = ->(ctx) { ctx.fail_with_rollback!("boom") }
 
       r.reduce(Workflow::Context.new, [s1, s2, s3])

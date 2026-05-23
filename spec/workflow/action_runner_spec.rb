@@ -71,7 +71,7 @@ RSpec.describe Workflow::ActionRunner do
       expect(ctx[:flag]).to eq(false)
     end
     it "applies remaining defaults independently when an earlier key already exists" do
-      action = make_action(defaults: { a: 1, b: 2, c: 3 })
+      action = make_action(defaults: {a: 1, b: 2, c: 3})
       ctx = Workflow::Context.new(a: 99)
       runner.call(action, ctx)
       expect(ctx[:a]).to eq(99)
@@ -211,7 +211,10 @@ RSpec.describe Workflow::ActionRunner do
     end
     it "passes the action to around hooks" do
       received = nil
-      hook = ->(action, _ctx, &blk) { received = action; blk.call }
+      hook = ->(action, _ctx, &blk) {
+        received = action
+        blk.call
+      }
       r = described_class.new(around_hooks: [hook])
       action = make_action
       r.call(action, Workflow::Context.new)
@@ -220,7 +223,10 @@ RSpec.describe Workflow::ActionRunner do
 
     it "passes the context to around hooks" do
       received = nil
-      hook = ->(_action, ctx, &blk) { received = ctx; blk.call }
+      hook = ->(_action, ctx, &blk) {
+        received = ctx
+        blk.call
+      }
       r = described_class.new(around_hooks: [hook])
       action = make_action
       ctx = Workflow::Context.new
