@@ -19,6 +19,21 @@ Or install directly:
 gem install actionflow
 ```
 
+The gem is published on [Gemfury](https://gemfury.com). To use it with Bundler,
+add Gemfury as a source in your Gemfile:
+
+```ruby
+source "https://gem.fury.io/ljuti/" do
+  gem "actionflow"
+end
+```
+
+Or configure it globally for all gems from this account:
+
+```bash
+bundle config gem.fury.io TOKEN_HERE
+```
+
 ## Usage
 
 ### Define an action
