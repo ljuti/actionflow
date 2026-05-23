@@ -8,6 +8,7 @@ module Workflow
   autoload :Context, "workflow/context"
   autoload :Action, "workflow/action"
   autoload :ActionRunner, "workflow/action_runner"
+  autoload :Organizer, "workflow/organizer"
   autoload :OrganizerSession, "workflow/organizer_session"
   autoload :Reducer, "workflow/reducer"
   autoload :RollbackStrategy, "workflow/rollback_strategy"
@@ -41,3 +42,4 @@ module Workflow
 end
 
 require "workflow/errors"
+require "workflow/configuration"
