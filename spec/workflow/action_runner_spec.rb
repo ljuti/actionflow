@@ -1,0 +1,183 @@
+# frozen_string_literal: true
+
+require "actionflow"
+
+RSpec.describe Workflow::ActionRunner do
+  let(:runner) { described_class.new }
+
+  def make_action(expected: [], promised: [], defaults: {}, &body)
+    action = double("action")
+    metadata = Workflow::ActionMetadata.new(
+      expected_keys: expected,
+      promised_keys: promised,
+      defaults: defaults
+    )
+    allow(action).to receive(:workflow_metadata).and_return(metadata)
+    allow(action).to receive(:call) { |ctx| body&.call(ctx) || ctx }
+    action
+  end
+
+  it "calls action's #call with the context" do
+    called = false
+    action = make_action { |ctx| called = true; ctx }
+    runner.call(action, Workflow::Context.new)
+    expect(called).to eq(true)
+  end
+
+  it "returns the context" do
+    action = make_action
+    ctx = Workflow::Context.new
+    expect(runner.call(action, ctx)).to equal(ctx)
+  end
+
+  it "returns ctx unchanged if stop_processing?" do
+    action = make_action
+    ctx = Workflow::Context.new
+    ctx.fail!
+    expect(action).not_to have_received(:call)
+    result = runner.call(action, ctx)
+    expect(result).to equal(ctx)
+  end
+
+  it "sets ctx.current_step to action before calling" do
+    action = make_action
+    ctx = Workflow::Context.new
+    runner.call(action, ctx)
+    expect(ctx.current_step).to equal(action)
+  end
+
+  describe "defaults" do
+    it "applies defaults from metadata" do
+      action = make_action(expected: [:flag], defaults: {flag: true})
+      ctx = Workflow::Context.new
+      runner.call(action, ctx)
+      expect(ctx[:flag]).to eq(true)
+    end
+
+    it "applies callable defaults" do
+      action = make_action(expected: [:flag], defaults: {flag: ->(ctx) { ctx[:base] + 1 }})
+      ctx = Workflow::Context.new(base: 10)
+      runner.call(action, ctx)
+      expect(ctx[:flag]).to eq(11)
+    end
+
+    it "does not overwrite existing keys with defaults" do
+      action = make_action(expected: [:flag], defaults: {flag: true})
+      ctx = Workflow::Context.new(flag: false)
+      runner.call(action, ctx)
+      expect(ctx[:flag]).to eq(false)
+    end
+  end
+
+  describe "expected keys verification" do
+    it "raises ExpectedKeysMissing when keys are absent" do
+      action = make_action(expected: [:user, :amount])
+      ctx = Workflow::Context.new
+      expect { runner.call(action, ctx) }.to raise_error(Workflow::ExpectedKeysMissing)
+    end
+
+    it "error message lists missing keys" do
+      action = make_action(expected: [:user, :amount])
+      ctx = Workflow::Context.new
+      expect { runner.call(action, ctx) }.to raise_error { |e|
+        expect(e.message).to include("user")
+        expect(e.message).to include("amount")
+      }
+    end
+
+    it "does not raise when all expected keys are present" do
+      action = make_action(expected: [:user])
+      ctx = Workflow::Context.new(user: "Alice")
+      expect { runner.call(action, ctx) }.not_to raise_error
+    end
+  end
+
+  describe "promised keys verification" do
+    it "raises PromisedKeysMissing when keys are absent after call" do
+      action = make_action(promised: [:charge])
+      ctx = Workflow::Context.new
+      expect { runner.call(action, ctx) }.to raise_error(Workflow::PromisedKeysMissing)
+    end
+
+    it "does not verify promised keys on failure" do
+      action = make_action(promised: [:charge]) { |ctx| ctx.fail! }
+      ctx = Workflow::Context.new
+      expect { runner.call(action, ctx) }.not_to raise_error
+    end
+
+    it "does not raise when all promised keys are present" do
+      action = make_action(promised: [:charge]) { |ctx| ctx[:charge] = 100 }
+      ctx = Workflow::Context.new
+      expect { runner.call(action, ctx) }.not_to raise_error
+    end
+  end
+
+  describe ".default" do
+    it "returns a new ActionRunner" do
+      expect(described_class.default).to be_a(described_class)
+    end
+  end
+
+  describe "hooks" do
+    it "runs before hooks in order" do
+      order = []
+      h1 = ->(_action, _ctx) { order << :before1 }
+      h2 = ->(_action, _ctx) { order << :before2 }
+      r = described_class.new(before_hooks: [h1, h2])
+      action = make_action
+      r.call(action, Workflow::Context.new)
+      expect(order).to eq(%i[before1 before2])
+    end
+
+    it "runs after hooks in order" do
+      order = []
+      h1 = ->(_action, _ctx) { order << :after1 }
+      h2 = ->(_action, _ctx) { order << :after2 }
+      r = described_class.new(after_hooks: [h1, h2])
+      action = make_action
+      r.call(action, Workflow::Context.new)
+      expect(order).to eq(%i[after1 after2])
+    end
+
+    it "runs around hooks wrapping action.call" do
+      order = []
+      around = ->(_action, _ctx, &blk) {
+        order << :around_before
+        result = blk.call
+        order << :around_after
+        result
+      }
+      r = described_class.new(around_hooks: [around])
+      action = make_action { |ctx| order << :action; ctx }
+      r.call(action, Workflow::Context.new)
+      expect(order).to eq(%i[around_before action around_after])
+    end
+
+    it "composes multiple around hooks correctly" do
+      order = []
+      outer = ->(_action, _ctx, &blk) {
+        order << :outer_before
+        result = blk.call
+        order << :outer_after
+        result
+      }
+      inner = ->(_action, _ctx, &blk) {
+        order << :inner_before
+        result = blk.call
+        order << :inner_after
+        result
+      }
+      r = described_class.new(around_hooks: [outer, inner])
+      action = make_action { |ctx| order << :action; ctx }
+      r.call(action, Workflow::Context.new)
+      expect(order).to eq(%i[outer_before inner_before action inner_after outer_after])
+    end
+
+    it "works with no hooks" do
+      r = described_class.new
+      action = make_action
+      ctx = Workflow::Context.new
+      expect { r.call(action, ctx) }.not_to raise_error
+    end
+  end
+end
