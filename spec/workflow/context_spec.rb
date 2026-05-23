@@ -18,12 +18,54 @@ RSpec.describe Workflow::Context do
       ctx = described_class.new("foo" => 1)
       expect(ctx[:foo]).to eq(1)
     end
+
+    it "initializes skip_remaining as exactly false" do
+      ctx = described_class.new
+      expect(ctx.skip_remaining?).to be(false)
+    end
+
+    it "initializes skip_all_remaining as exactly false" do
+      ctx = described_class.new
+      expect(ctx.skip_all_remaining?).to be(false)
+    end
+
+    it "initializes message as nil" do
+      ctx = described_class.new
+      expect(ctx.message).to be_nil
+    end
+
+    it "initializes error_code as nil" do
+      ctx = described_class.new
+      expect(ctx.error_code).to be_nil
+    end
+
+    it "converts non-hash input via to_h" do
+      struct = Struct.new(:a).new(1)
+      ctx = described_class.new(struct)
+      expect(ctx[:a]).to eq(1)
+    end
+
+    it "is not stop_processing on fresh context" do
+      ctx = described_class.new
+      expect(ctx).not_to be_stop_processing
+    end
   end
 
   describe "[]" do
     it "reads a value by symbol key" do
       ctx = described_class.new(a: 1)
       expect(ctx[:a]).to eq(1)
+    end
+
+    it "returns nil for missing keys" do
+      ctx = described_class.new
+      expect(ctx[:missing]).to be_nil
+    end
+
+    it "resolves aliases when reading" do
+      ctx = described_class.new(original: 42)
+      ctx.assign_aliases(alias: :original)
+      expect(ctx[:alias]).to eq(42)
     end
   end
 
@@ -44,6 +86,17 @@ RSpec.describe Workflow::Context do
     it "returns false for an absent key" do
       ctx = described_class.new
       expect(ctx.key?(:missing)).to eq(false)
+    end
+
+    it "resolves aliases" do
+      ctx = described_class.new(original: 1)
+      ctx.assign_aliases(alias: :original)
+      expect(ctx.key?(:alias)).to eq(true)
+    end
+
+    it "coerces string keys to symbols" do
+      ctx = described_class.new(foo: 1)
+      expect(ctx.key?("foo")).to eq(true)
     end
   end
 
@@ -109,6 +162,16 @@ RSpec.describe Workflow::Context do
       ctx.fail!
       expect(ctx).to be_stop_processing
     end
+
+    it "passes options to localization adapter" do
+      adapter = instance_double(Workflow::Localization::NullAdapter)
+      allow(adapter).to receive(:failure).with("boom", nil, {scope: :payment}).and_return("translated")
+      allow(Workflow.configuration).to receive(:localization_adapter).and_return(adapter)
+
+      ctx = described_class.new
+      ctx.fail!("boom", scope: :payment)
+      expect(ctx.message).to eq("translated")
+    end
   end
 
   describe "#succeed!" do
@@ -117,6 +180,21 @@ RSpec.describe Workflow::Context do
       ctx.succeed!("ok")
       expect(ctx).to be_success
       expect(ctx.message).to eq("ok")
+    end
+
+    it "works without arguments" do
+      ctx = described_class.new
+      ctx.succeed!
+      expect(ctx).to be_success
+      expect(ctx.message).to be_nil
+    end
+
+    it "restores success from failure state" do
+      ctx = described_class.new
+      ctx.fail!("bad")
+      expect(ctx).to be_failure
+      ctx.succeed!("ok")
+      expect(ctx).to be_success
     end
   end
 
@@ -206,6 +284,13 @@ RSpec.describe Workflow::Context do
       ctx.assign_aliases(alias: :original)
       expect(ctx.key?(:alias)).to eq(true)
     end
+
+    it "symbolizes string keys and values" do
+      ctx = described_class.new
+      ctx.assign_aliases("alias" => "original")
+      ctx[:alias] = 42
+      expect(ctx[:original]).to eq(42)
+    end
   end
 
   describe "#fail_with_rollback!" do
@@ -233,6 +318,13 @@ RSpec.describe Workflow::Context do
         nil
       end
       expect(ctx.error_code).to eq(:gateway_timeout)
+    end
+
+    it "works without arguments" do
+      ctx = described_class.new
+      expect { ctx.fail_with_rollback! }.to raise_error(Workflow::FailWithRollback)
+      expect(ctx).to be_failure
+      expect(ctx.message).to be_nil
     end
   end
 

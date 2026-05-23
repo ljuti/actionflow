@@ -31,7 +31,7 @@ module Workflow
     end
 
     def execute(ctx = Context.new)
-      Workflow::ActionRunner.default.call(self, ctx)
+      ActionRunner.default.call(self, ctx)
     end
   end
 end

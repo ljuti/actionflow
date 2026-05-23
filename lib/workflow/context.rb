@@ -5,13 +5,11 @@ module Workflow
     attr_reader :data
     attr_accessor :message, :error_code, :current_step, :organized_by
 
-    def initialize(data = {})
+    def initialize(data = nil)
       @data = data.to_h.transform_keys(&:to_sym)
       @success = true
       @skip_remaining = false
       @skip_all_remaining = false
-      @message = nil
-      @error_code = nil
       @aliases = {}
     end
 
@@ -87,7 +85,7 @@ module Workflow
 
     def fail_with_rollback!(message = nil, error_code: nil)
       fail!(message, error_code: error_code)
-      raise Workflow::FailWithRollback
+      raise FailWithRollback
     end
 
     private

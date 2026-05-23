@@ -17,6 +17,11 @@ RSpec.describe Workflow::Configuration do
     expect(config.strict_context_access).to eq(false)
   end
 
+  it "has strict_context_access as exactly false (not nil)" do
+    expect(config.strict_context_access).to be(false)
+    expect(config.strict_context_access).not_to be_nil
+  end
+
   it "allows setting logger" do
     logger = instance_double("Logger")
     config.logger = logger

@@ -13,6 +13,11 @@ RSpec.describe Workflow::Localization do
       adapter = described_class.new
       expect(adapter.failure(nil, nil, {})).to be_nil
     end
+    it "returns the exact same object as the input message" do
+      adapter = described_class.new
+      msg = "Card declined"
+      expect(adapter.failure(msg, :an_action, { key: "val" })).to equal(msg)
+    end
   end
 
   describe Workflow::Localization::HashAdapter do
@@ -36,6 +41,26 @@ RSpec.describe Workflow::Localization do
     it "returns nil for nil message" do
       adapter = described_class.new(catalog)
       expect(adapter.failure(nil, nil, {})).to be_nil
+    end
+
+    it "defaults catalog to empty hash when no argument given" do
+      adapter = described_class.new
+      expect(adapter.failure("any_key", nil, {})).to eq("any_key")
+    end
+
+    it "returns nil for nil message even when catalog has nil key" do
+      adapter = described_class.new({ nil => "not_this" })
+      expect(adapter.failure(nil, nil, {})).to be_nil
+    end
+
+    it "returns known message from catalog" do
+      adapter = described_class.new({ "a" => "b" })
+      expect(adapter.failure("a", nil, {})).to eq("b")
+    end
+
+    it "returns unknown message unchanged" do
+      adapter = described_class.new({ "a" => "b" })
+      expect(adapter.failure("c", nil, {})).to eq("c")
     end
   end
 

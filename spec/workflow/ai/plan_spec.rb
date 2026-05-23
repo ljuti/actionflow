@@ -55,4 +55,40 @@ RSpec.describe Workflow::Ai::Plan do
   it "raises on non-hash input" do
     expect { described_class.new("not a hash") }.to raise_error(ArgumentError)
   end
+
+  it "accepts Hash subclass because is_a? includes subclasses" do
+    custom_hash = Class.new(Hash) {
+      def initialize
+        super
+        self["steps"] = [{"id" => "a"}]
+      end
+    }.new
+
+    plan = described_class.new(custom_hash)
+    expect(plan.steps).to eq([{"id" => "a"}])
+  end
+
+  it "defaults input to empty hash when input key is absent" do
+    raw = {"steps" => [{"id" => "a"}]}
+    plan = described_class.new(raw)
+    expect(plan.input).to eq({})
+  end
+
+  it "preserves input value when present" do
+    raw = {"steps" => [{"id" => "a"}], "input" => {"key" => "val"}}
+    plan = described_class.new(raw)
+    expect(plan.input).to eq({"key" => "val"})
+  end
+
+  it "sets name to nil when name key is absent" do
+    raw = {"steps" => [{"id" => "a"}]}
+    plan = described_class.new(raw)
+    expect(plan.name).to be_nil
+  end
+
+  it "sets name to value when present" do
+    raw = {"name" => "my_plan", "steps" => [{"id" => "a"}]}
+    plan = described_class.new(raw)
+    expect(plan.name).to eq("my_plan")
+  end
 end

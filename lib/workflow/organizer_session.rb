@@ -2,8 +2,7 @@
 
 module Workflow
   class OrganizerSession
-    def initialize(organizer, ctx)
-      @organizer = organizer
+    def initialize(_organizer, ctx)
       @ctx = ctx
       @before_hooks = []
       @after_hooks = []
@@ -34,7 +33,7 @@ module Workflow
       )
 
       reducer = Reducer.new(action_runner: runner)
-      reducer.reduce(@ctx, steps.flatten)
+      reducer.reduce(@ctx, steps)
     end
   end
 end

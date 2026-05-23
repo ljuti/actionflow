@@ -41,4 +41,25 @@ RSpec.describe Workflow::Ai::CapabilityRegistry do
 
     expect(registry.fetch(:find).description).to eq("Second")
   end
+
+  it "descriptions returns exact to_description output for each capability" do
+    registry = described_class.new
+    cap = Workflow::Ai::Capability.new(:find_order, action: action, description: "Find order",
+      expects: [:order_id], promises: [:order], side_effects: [:db_read], risk: :medium,
+      requires_approval: false, rollback_available: true)
+
+    registry.register(cap)
+
+    descs = registry.descriptions
+    expect(descs.length).to eq(1)
+    expect(descs[0][:id]).to eq(:find_order)
+    expect(descs[0][:side_effects]).to eq([:db_read])
+    expect(descs[0][:risk]).to eq(:medium)
+    expect(descs[0][:rollback_available]).to eq(true)
+  end
+
+  it "descriptions returns empty array for empty registry" do
+    registry = described_class.new
+    expect(registry.descriptions).to eq([])
+  end
 end

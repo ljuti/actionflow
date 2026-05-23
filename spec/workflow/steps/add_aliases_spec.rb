@@ -9,4 +9,10 @@ RSpec.describe Workflow::Steps::AddAliases do
     step.call(ctx)
     expect(ctx[:name]).to eq("Alice")
   end
+
+  it "returns ctx" do
+    step = described_class.new(name: :full_name)
+    ctx = Workflow::Context.new(full_name: "Alice")
+    expect(step.call(ctx)).to equal(ctx)
+  end
 end

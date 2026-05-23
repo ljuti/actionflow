@@ -53,7 +53,125 @@ RSpec.describe Workflow::Steps::ReduceIfElse do
     )
     ctx = Workflow::Context.new
     ctx.fail!
-    step.call(ctx)
+    result = step.call(ctx)
     expect(if_ran).to eq(false)
+    expect(result).to equal(ctx)
+  end
+
+  it "returns ctx when condition is true" do
+    step = described_class.new(->(ctx) { true }, [->(ctx) { ctx }], [])
+    ctx = Workflow::Context.new
+    expect(step.call(ctx)).to equal(ctx)
+  end
+
+  it "returns ctx when condition is false" do
+    step = described_class.new(->(ctx) { false }, [], [->(ctx) { ctx }])
+    ctx = Workflow::Context.new
+    expect(step.call(ctx)).to equal(ctx)
+  end
+
+  it "resets skip_remaining on scope exit in if-branch" do
+    step = described_class.new(
+      ->(ctx) { true },
+      [->(ctx) {
+        ctx.skip_remaining!
+        ctx
+      }],
+      []
+    )
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx).not_to be_skip_remaining
+  end
+
+  it "resets skip_remaining on scope exit in else-branch" do
+    step = described_class.new(
+      ->(ctx) { false },
+      [],
+      [->(ctx) {
+        ctx.skip_remaining!
+        ctx
+      }]
+    )
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx).not_to be_skip_remaining
+  end
+
+  it "does not reset skip_remaining on failure in if-branch" do
+    step = described_class.new(
+      ->(ctx) { true },
+      [->(ctx) {
+        ctx.skip_remaining!
+        ctx.fail!("error")
+        ctx
+      }],
+      []
+    )
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx).to be_failure
+    expect(ctx).to be_skip_remaining
+  end
+
+  it "does not reset skip_remaining on failure in else-branch" do
+    step = described_class.new(
+      ->(ctx) { false },
+      [],
+      [->(ctx) {
+        ctx.skip_remaining!
+        ctx.fail!("error")
+        ctx
+      }]
+    )
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx).to be_failure
+    expect(ctx).to be_skip_remaining
+  end
+
+  it "preserves failure message when skip_remaining is not reset" do
+    step = described_class.new(
+      ->(ctx) { true },
+      [->(ctx) {
+        ctx.skip_remaining!
+        ctx.fail!("bad thing")
+        ctx
+      }],
+      []
+    )
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx.message).to eq("bad thing")
+  end
+
+  it "does not reset skip_remaining when skip_all_remaining is set" do
+    step = described_class.new(
+      ->(ctx) { true },
+      [->(ctx) {
+        ctx.skip_remaining!
+        ctx.skip_all_remaining!
+        ctx
+      }],
+      []
+    )
+    ctx = Workflow::Context.new
+    step.call(ctx)
+    expect(ctx).to be_skip_all_remaining
+    expect(ctx).to be_skip_remaining
+  end
+
+  it "condition receives the context" do
+    step = described_class.new(
+      ->(ctx) { ctx[:x] > 0 },
+      [->(ctx) {
+        ctx[:ran] = true
+        ctx
+      }],
+      []
+    )
+    ctx = Workflow::Context.new(x: 5)
+    step.call(ctx)
+    expect(ctx[:ran]).to eq(true)
   end
 end

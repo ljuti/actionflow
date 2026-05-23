@@ -100,4 +100,18 @@ RSpec.describe Workflow::OrganizerSession do
     expect(result[:one]).to eq(true)
     expect(result[:two]).to eq(true)
   end
+
+  it "passes configured logger to ActionRunner" do
+    test_logger = Object.new
+    original_logger = Workflow.configuration.logger
+    Workflow.configuration.logger = test_logger
+
+    expect(Workflow::ActionRunner).to receive(:new).with(
+      hash_including(logger: test_logger)
+    ).and_call_original
+
+    session.reduce(->(ctx) { ctx })
+
+    Workflow.configuration.logger = original_logger
+  end
 end

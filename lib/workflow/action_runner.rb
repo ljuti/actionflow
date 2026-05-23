@@ -49,14 +49,14 @@ module Workflow
 
     def verify_expected_keys!(action, ctx)
       missing = metadata_for(action).expected_keys.reject { |key| ctx.key?(key) }
-      raise ExpectedKeysMissing, "Missing expected keys: #{missing.inspect}" unless missing.empty?
+      raise ExpectedKeysMissing, "Missing expected keys: #{missing}" unless missing.empty?
     end
 
     def verify_promised_keys!(action, ctx)
       return if ctx.failure?
 
       missing = metadata_for(action).promised_keys.reject { |key| ctx.key?(key) }
-      raise PromisedKeysMissing, "Missing promised keys: #{missing.inspect}" unless missing.empty?
+      raise PromisedKeysMissing, "Missing promised keys: #{missing}" unless missing.empty?
     end
 
     def run_before_hooks(action, ctx)

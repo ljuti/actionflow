@@ -17,4 +17,10 @@ RSpec.describe Workflow::Steps::AddToContext do
     step.call(ctx)
     expect(ctx[:status]).to eq("done")
   end
+
+  it "returns ctx" do
+    step = described_class.new(status: "pending")
+    ctx = Workflow::Context.new
+    expect(step.call(ctx)).to equal(ctx)
+  end
 end

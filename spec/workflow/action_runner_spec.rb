@@ -37,8 +37,8 @@ RSpec.describe Workflow::ActionRunner do
     action = make_action
     ctx = Workflow::Context.new
     ctx.fail!
-    expect(action).not_to have_received(:call)
     result = runner.call(action, ctx)
+    expect(action).not_to have_received(:call)
     expect(result).to equal(ctx)
   end
 
@@ -70,6 +70,14 @@ RSpec.describe Workflow::ActionRunner do
       runner.call(action, ctx)
       expect(ctx[:flag]).to eq(false)
     end
+    it "applies remaining defaults independently when an earlier key already exists" do
+      action = make_action(defaults: { a: 1, b: 2, c: 3 })
+      ctx = Workflow::Context.new(a: 99)
+      runner.call(action, ctx)
+      expect(ctx[:a]).to eq(99)
+      expect(ctx[:b]).to eq(2)
+      expect(ctx[:c]).to eq(3)
+    end
   end
 
   describe "expected keys verification" do
@@ -79,13 +87,10 @@ RSpec.describe Workflow::ActionRunner do
       expect { runner.call(action, ctx) }.to raise_error(Workflow::ExpectedKeysMissing)
     end
 
-    it "error message lists missing keys" do
-      action = make_action(expected: [:user, :amount])
+    it "error message includes inspected missing keys" do
+      action = make_action(expected: [:user])
       ctx = Workflow::Context.new
-      expect { runner.call(action, ctx) }.to raise_error { |e|
-        expect(e.message).to include("user")
-        expect(e.message).to include("amount")
-      }
+      expect { runner.call(action, ctx) }.to raise_error(Workflow::ExpectedKeysMissing, a_string_matching(/\[:user\]/))
     end
 
     it "does not raise when all expected keys are present" do
@@ -100,6 +105,11 @@ RSpec.describe Workflow::ActionRunner do
       action = make_action(promised: [:charge])
       ctx = Workflow::Context.new
       expect { runner.call(action, ctx) }.to raise_error(Workflow::PromisedKeysMissing)
+    end
+    it "promised error message includes inspected missing keys" do
+      action = make_action(promised: [:charge])
+      ctx = Workflow::Context.new
+      expect { runner.call(action, ctx) }.to raise_error(Workflow::PromisedKeysMissing, a_string_matching(/\[:charge\]/))
     end
 
     it "does not verify promised keys on failure" do
@@ -120,6 +130,11 @@ RSpec.describe Workflow::ActionRunner do
       expect(described_class.default).to be_a(described_class)
     end
   end
+  it "stores the provided logger" do
+    logger = double("logger")
+    r = described_class.new(logger: logger)
+    expect(r.instance_variable_get(:@logger)).to equal(logger)
+  end
 
   describe "hooks" do
     it "runs before hooks in order" do
@@ -131,6 +146,24 @@ RSpec.describe Workflow::ActionRunner do
       r.call(action, Workflow::Context.new)
       expect(order).to eq(%i[before1 before2])
     end
+    it "passes the action to before hooks" do
+      received = nil
+      hook = ->(action, _ctx) { received = action }
+      r = described_class.new(before_hooks: [hook])
+      action = make_action
+      r.call(action, Workflow::Context.new)
+      expect(received).to equal(action)
+    end
+
+    it "passes the context to before hooks" do
+      received = nil
+      hook = ->(_action, ctx) { received = ctx }
+      r = described_class.new(before_hooks: [hook])
+      action = make_action
+      ctx = Workflow::Context.new
+      r.call(action, ctx)
+      expect(received).to equal(ctx)
+    end
 
     it "runs after hooks in order" do
       order = []
@@ -140,6 +173,24 @@ RSpec.describe Workflow::ActionRunner do
       action = make_action
       r.call(action, Workflow::Context.new)
       expect(order).to eq(%i[after1 after2])
+    end
+    it "passes the action to after hooks" do
+      received = nil
+      hook = ->(action, _ctx) { received = action }
+      r = described_class.new(after_hooks: [hook])
+      action = make_action
+      r.call(action, Workflow::Context.new)
+      expect(received).to equal(action)
+    end
+
+    it "passes the context to after hooks" do
+      received = nil
+      hook = ->(_action, ctx) { received = ctx }
+      r = described_class.new(after_hooks: [hook])
+      action = make_action
+      ctx = Workflow::Context.new
+      r.call(action, ctx)
+      expect(received).to equal(ctx)
     end
 
     it "runs around hooks wrapping action.call" do
@@ -157,6 +208,24 @@ RSpec.describe Workflow::ActionRunner do
       }
       r.call(action, Workflow::Context.new)
       expect(order).to eq(%i[around_before action around_after])
+    end
+    it "passes the action to around hooks" do
+      received = nil
+      hook = ->(action, _ctx, &blk) { received = action; blk.call }
+      r = described_class.new(around_hooks: [hook])
+      action = make_action
+      r.call(action, Workflow::Context.new)
+      expect(received).to equal(action)
+    end
+
+    it "passes the context to around hooks" do
+      received = nil
+      hook = ->(_action, ctx, &blk) { received = ctx; blk.call }
+      r = described_class.new(around_hooks: [hook])
+      action = make_action
+      ctx = Workflow::Context.new
+      r.call(action, ctx)
+      expect(received).to equal(ctx)
     end
 
     it "composes multiple around hooks correctly" do
