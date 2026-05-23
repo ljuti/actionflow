@@ -2,7 +2,7 @@
 
 RSpec.describe Actionflow do
   it "has a version number" do
-    expect(Actionflow::VERSION).to eq("0.1.0")
+    expect(Actionflow.gem_version).to eq("0.1.0")
   end
 
   it "exposes the Workflow namespace" do

@@ -4,7 +4,7 @@ require_relative "lib/actionflow/version"
 
 Gem::Specification.new do |spec|
   spec.name = "actionflow"
-  spec.version = Actionflow::VERSION
+  spec.version = Actionflow.gem_version
   spec.authors = ["Lauri Jutila"]
   spec.email = ["ljuti@nmux.dev"]
 
