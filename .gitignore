@@ -12,3 +12,4 @@
 /.mutant/
 /.agents/skills
 *.gem
+Gemfile.lock
