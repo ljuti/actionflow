@@ -19,19 +19,34 @@ RSpec.describe Workflow::Action do
 
   describe "expects DSL" do
     it "registers expected keys on the class" do
-      klass = Class.new { include Workflow::Action; expects :a, :b }
+      klass = Class.new {
+        include Workflow::Action
+
+        expects :a, :b
+      }
+
       expect(klass.workflow_metadata.expected_keys).to eq(%i[a b])
     end
 
     it "supports default values" do
-      klass = Class.new { include Workflow::Action; expects :flag, default: true }
+      klass = Class.new {
+        include Workflow::Action
+
+        expects :flag, default: true
+      }
+
       meta = klass.workflow_metadata
       expect(meta.expected_keys).to include(:flag)
       expect(meta.defaults[:flag]).to eq(true)
     end
 
     it "supports callable defaults" do
-      klass = Class.new { include Workflow::Action; expects :flag, default: ->(ctx) { ctx[:base] + 1 } }
+      klass = Class.new {
+        include Workflow::Action
+
+        expects :flag, default: ->(ctx) { ctx[:base] + 1 }
+      }
+
       meta = klass.workflow_metadata
       expect(meta.defaults[:flag]).to respond_to(:call)
     end
@@ -39,6 +54,7 @@ RSpec.describe Workflow::Action do
     it "accumulates from multiple expects calls" do
       klass = Class.new {
         include Workflow::Action
+
         expects :a
         expects :b
       }
@@ -48,13 +64,19 @@ RSpec.describe Workflow::Action do
 
   describe "promises DSL" do
     it "registers promised keys" do
-      klass = Class.new { include Workflow::Action; promises :result }
+      klass = Class.new {
+        include Workflow::Action
+
+        promises :result
+      }
+
       expect(klass.workflow_metadata.promised_keys).to eq(%i[result])
     end
 
     it "accumulates from multiple promises calls" do
       klass = Class.new {
         include Workflow::Action
+
         promises :a
         promises :b
       }
@@ -87,6 +109,7 @@ RSpec.describe Workflow::Action do
     it "verifies promised keys" do
       klass = Class.new {
         include Workflow::Action
+
         promises :missing_key
 
         def call(ctx)
@@ -116,7 +139,8 @@ RSpec.describe Workflow::Action do
       klass = Class.new {
         include Workflow::Action
 
-        def call(ctx); end
+        def call(ctx)
+        end
 
         def rollback(ctx)
           ctx[:rolled_back] = true
@@ -130,7 +154,8 @@ RSpec.describe Workflow::Action do
       klass = Class.new {
         include Workflow::Action
 
-        def call(ctx); end
+        def call(ctx)
+        end
       }
       action = klass.new
       expect(action.respond_to?(:rollback)).to eq(false)

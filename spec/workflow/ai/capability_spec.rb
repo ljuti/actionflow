@@ -6,6 +6,7 @@ RSpec.describe Workflow::Ai::Capability do
   let(:action) do
     Class.new {
       include Workflow::Action
+
       expects :order_id
       promises :order
 

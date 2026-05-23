@@ -19,7 +19,10 @@ RSpec.describe Workflow::ActionRunner do
 
   it "calls action's #call with the context" do
     called = false
-    action = make_action { |ctx| called = true; ctx }
+    action = make_action { |ctx|
+      called = true
+      ctx
+    }
     runner.call(action, Workflow::Context.new)
     expect(called).to eq(true)
   end
@@ -148,7 +151,10 @@ RSpec.describe Workflow::ActionRunner do
         result
       }
       r = described_class.new(around_hooks: [around])
-      action = make_action { |ctx| order << :action; ctx }
+      action = make_action { |ctx|
+        order << :action
+        ctx
+      }
       r.call(action, Workflow::Context.new)
       expect(order).to eq(%i[around_before action around_after])
     end
@@ -168,7 +174,10 @@ RSpec.describe Workflow::ActionRunner do
         result
       }
       r = described_class.new(around_hooks: [outer, inner])
-      action = make_action { |ctx| order << :action; ctx }
+      action = make_action { |ctx|
+        order << :action
+        ctx
+      }
       r.call(action, Workflow::Context.new)
       expect(order).to eq(%i[outer_before inner_before action inner_after outer_after])
     end

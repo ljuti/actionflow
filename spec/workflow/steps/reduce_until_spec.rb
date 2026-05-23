@@ -6,7 +6,10 @@ RSpec.describe Workflow::Steps::ReduceUntil do
   it "runs steps until condition is true" do
     step = described_class.new(
       ->(ctx) { (ctx[:count] || 0) >= 3 },
-      [->(ctx) { ctx[:count] = (ctx[:count] || 0) + 1; ctx }]
+      [->(ctx) {
+        ctx[:count] = (ctx[:count] || 0) + 1
+        ctx
+      }]
     )
     ctx = Workflow::Context.new
     step.call(ctx)
@@ -16,7 +19,10 @@ RSpec.describe Workflow::Steps::ReduceUntil do
   it "does not run steps if condition is already true" do
     step = described_class.new(
       ->(ctx) { true },
-      [->(ctx) { ctx[:ran] = true; ctx }]
+      [->(ctx) {
+        ctx[:ran] = true
+        ctx
+      }]
     )
     ctx = Workflow::Context.new
     step.call(ctx)
@@ -27,7 +33,10 @@ RSpec.describe Workflow::Steps::ReduceUntil do
     ran = false
     step = described_class.new(
       ->(ctx) { false },
-      [->(ctx) { ran = true; ctx }]
+      [->(ctx) {
+        ran = true
+        ctx
+      }]
     )
     ctx = Workflow::Context.new
     ctx.fail!

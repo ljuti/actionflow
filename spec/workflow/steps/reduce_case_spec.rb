@@ -7,7 +7,10 @@ RSpec.describe Workflow::Steps::ReduceCase do
     ran = false
     step = described_class.new(
       ->(ctx) { ctx[:type] },
-      {admin: [->(ctx) { ran = true; ctx }], user: []}
+      {admin: [->(ctx) {
+        ran = true
+        ctx
+      }], user: []}
     )
     ctx = Workflow::Context.new(type: :admin)
     step.call(ctx)
@@ -18,7 +21,10 @@ RSpec.describe Workflow::Steps::ReduceCase do
     ran = false
     step = described_class.new(
       ->(ctx) { ctx[:type] },
-      {admin: [->(ctx) { ran = true; ctx }]}
+      {admin: [->(ctx) {
+        ran = true
+        ctx
+      }]}
     )
     ctx = Workflow::Context.new(type: :guest)
     step.call(ctx)
@@ -30,7 +36,13 @@ RSpec.describe Workflow::Steps::ReduceCase do
     user_ran = false
     step = described_class.new(
       ->(ctx) { ctx[:type] },
-      {admin: [->(ctx) { admin_ran = true; ctx }], user: [->(ctx) { user_ran = true; ctx }]}
+      {admin: [->(ctx) do
+        admin_ran = true
+        ctx
+      end], user: [->(ctx) do
+        user_ran = true
+        ctx
+      end]}
     )
     ctx = Workflow::Context.new(type: :admin)
     step.call(ctx)

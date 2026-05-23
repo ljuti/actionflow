@@ -5,8 +5,14 @@ require "actionflow"
 RSpec.describe Workflow::Ai::DynamicOrganizer do
   it "executes compiled steps" do
     organizer = described_class.new(steps: [
-      ->(ctx) { ctx[:step1] = true; ctx },
-      ->(ctx) { ctx[:step2] = true; ctx }
+      ->(ctx) {
+        ctx[:step1] = true
+        ctx
+      },
+      ->(ctx) {
+        ctx[:step2] = true
+        ctx
+      }
     ])
 
     result = organizer.call(x: 1)
@@ -20,8 +26,10 @@ RSpec.describe Workflow::Ai::DynamicOrganizer do
 
     action = Class.new {
       include Workflow::Action
+
       expects :x
-      def call(ctx); end
+      def call(ctx)
+      end
     }.new
 
     organizer = described_class.new(

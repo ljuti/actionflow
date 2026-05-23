@@ -4,11 +4,11 @@ module Workflow
   module Ai
     class Capability
       attr_reader :id, :action, :description, :expects, :promises,
-                  :side_effects, :risk, :requires_approval, :rollback_available
+        :side_effects, :risk, :requires_approval, :rollback_available
 
       def initialize(id, action:, description:, expects:, promises:,
-                     side_effects: [], risk: :low, requires_approval: false,
-                     rollback_available: false)
+        side_effects: [], risk: :low, requires_approval: false,
+        rollback_available: false)
         @id = id
         @action = action
         @description = description

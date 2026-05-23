@@ -4,7 +4,10 @@ require "actionflow"
 
 RSpec.describe Workflow::Steps::WithCallback do
   it "runs steps and stores callback in context" do
-    step = described_class.new(:callback, [->(ctx) { ctx[:prepared] = true; ctx }], [])
+    step = described_class.new(:callback, [->(ctx) {
+      ctx[:prepared] = true
+      ctx
+    }], [])
     ctx = Workflow::Context.new
     step.call(ctx)
     expect(ctx[:prepared]).to eq(true)
@@ -12,7 +15,10 @@ RSpec.describe Workflow::Steps::WithCallback do
   end
 
   it "callback when invoked runs callback steps" do
-    step = described_class.new(:callback, [], [->(ctx) { ctx[:callback_ran] = true; ctx }])
+    step = described_class.new(:callback, [], [->(ctx) {
+      ctx[:callback_ran] = true
+      ctx
+    }])
     ctx = Workflow::Context.new
     step.call(ctx)
 

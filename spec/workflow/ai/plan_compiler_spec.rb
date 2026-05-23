@@ -5,14 +5,26 @@ require "actionflow"
 RSpec.describe Workflow::Ai::PlanCompiler do
   let(:registry) { Workflow::Ai::CapabilityRegistry.new }
   let(:compiler) { described_class.new(registry: registry) }
+  let(:find_action) do
+    ->(ctx) do
+      ctx[:order] = {id: ctx[:order_id]}
+      ctx
+    end
+  end
+  let(:validate_action) do
+    ->(ctx) do
+      ctx[:valid] = true
+      ctx
+    end
+  end
 
   before do
     registry.register(Workflow::Ai::Capability.new(
-      :find_order, action: ->(ctx) { ctx[:order] = {id: ctx[:order_id]}; ctx },
+      :find_order, action: find_action,
       description: "Find", expects: [:order_id], promises: [:order], side_effects: [], risk: :low
     ))
     registry.register(Workflow::Ai::Capability.new(
-      :validate_order, action: ->(ctx) { ctx[:valid] = true; ctx },
+      :validate_order, action: validate_action,
       description: "Validate", expects: [:order], promises: [:valid], side_effects: [], risk: :low
     ))
   end

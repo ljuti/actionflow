@@ -6,6 +6,7 @@ RSpec.describe Workflow::Testing::ContextFactory do
   before do
     stub_const("StepOne", Class.new {
       include Workflow::Action
+
       expects :input
       promises :step_one_result
 
@@ -16,6 +17,7 @@ RSpec.describe Workflow::Testing::ContextFactory do
 
     stub_const("StepTwo", Class.new {
       include Workflow::Action
+
       expects :step_one_result
       promises :step_two_result
 

@@ -19,8 +19,14 @@ RSpec.describe Workflow::Reducer do
 
   it "executes steps in order" do
     order = []
-    s1 = ->(ctx) { order << 1; ctx }
-    s2 = ->(ctx) { order << 2; ctx }
+    s1 = ->(ctx) {
+      order << 1
+      ctx
+    }
+    s2 = ->(ctx) {
+      order << 2
+      ctx
+    }
 
     ctx = reducer.reduce(Workflow::Context.new, [s1, s2])
     expect(order).to eq([1, 2])
@@ -34,8 +40,15 @@ RSpec.describe Workflow::Reducer do
 
   it "breaks on ctx.stop_processing?" do
     order = []
-    s1 = ->(ctx) { order << 1; ctx.fail!; ctx }
-    s2 = ->(ctx) { order << 2; ctx }
+    s1 = ->(ctx) {
+      order << 1
+      ctx.fail!
+      ctx
+    }
+    s2 = ->(ctx) {
+      order << 2
+      ctx
+    }
 
     reducer.reduce(Workflow::Context.new, [s1, s2])
     expect(order).to eq([1])
@@ -49,15 +62,24 @@ RSpec.describe Workflow::Reducer do
 
   it "calls plain callables directly" do
     called = false
-    step = ->(ctx) { called = true; ctx }
+    step = ->(ctx) {
+      called = true
+      ctx
+    }
     reducer.reduce(Workflow::Context.new, [step])
     expect(called).to eq(true)
   end
 
   it "flattens nested step arrays" do
     order = []
-    s1 = ->(ctx) { order << 1; ctx }
-    s2 = ->(ctx) { order << 2; ctx }
+    s1 = ->(ctx) {
+      order << 1
+      ctx
+    }
+    s2 = ->(ctx) {
+      order << 2
+      ctx
+    }
 
     reducer.reduce(Workflow::Context.new, [[s1], [s2]])
     expect(order).to eq([1, 2])
@@ -83,8 +105,14 @@ RSpec.describe Workflow::Reducer do
 
     it "stops executing after rollback" do
       order = []
-      s1 = ->(ctx) { order << 1; ctx.fail_with_rollback!("boom") }
-      s2 = ->(ctx) { order << 2; ctx }
+      s1 = ->(ctx) {
+        order << 1
+        ctx.fail_with_rollback!("boom")
+      }
+      s2 = ->(ctx) {
+        order << 2
+        ctx
+      }
 
       reducer.reduce(Workflow::Context.new, [s1, s2])
       expect(order).to eq([1])
@@ -92,15 +120,23 @@ RSpec.describe Workflow::Reducer do
 
     it "only rolled-back steps are passed to strategy" do
       rolled_back = nil
-      strategy = ->(_ctx, steps) { rolled_back = steps }
 
       custom_strategy = instance_double(Workflow::RollbackStrategy)
-      allow(custom_strategy).to receive(:rollback) { |ctx, steps| rolled_back = steps; ctx }
+      allow(custom_strategy).to receive(:rollback) { |ctx, steps|
+        rolled_back = steps
+        ctx
+      }
 
       r = described_class.new(action_runner: runner, rollback_strategy: custom_strategy)
-      s1 = ->(ctx) { ctx[:step1] = true; ctx }
+      s1 = ->(ctx) {
+        ctx[:step1] = true
+        ctx
+      }
       s2 = ->(ctx) { ctx.fail_with_rollback!("boom") }
-      s3 = ->(ctx) { ctx[:step3] = true; ctx }
+      s3 = ->(ctx) {
+        ctx[:step3] = true
+        ctx
+      }
 
       r.reduce(Workflow::Context.new, [s1, s2, s3])
       expect(rolled_back.length).to eq(2)

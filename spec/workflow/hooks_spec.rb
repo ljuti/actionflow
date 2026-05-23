@@ -113,7 +113,10 @@ RSpec.describe "Integration: hooks" do
 
     action1 = SimpleAction.new
     # Use anonymous lambdas as second step
-    step2 = ->(ctx) { ctx[:extra] = true; ctx }
+    step2 = ->(ctx) {
+      ctx[:extra] = true
+      ctx
+    }
 
     organizer = Class.new { include Workflow::Organizer }.new
     organizer.with(value: 5)
@@ -137,6 +140,7 @@ RSpec.describe "Integration: hooks" do
 
     failing_action = Class.new {
       include Workflow::Action
+
       expects :value
       def call(ctx)
         ctx.fail!("boom")

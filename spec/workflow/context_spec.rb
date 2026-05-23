@@ -216,14 +216,22 @@ RSpec.describe Workflow::Context do
 
     it "marks failure and sets message" do
       ctx = described_class.new
-      ctx.fail_with_rollback!("Payment failed") rescue nil
+      begin
+        ctx.fail_with_rollback!("Payment failed")
+      rescue
+        nil
+      end
       expect(ctx).to be_failure
       expect(ctx.message).to eq("Payment failed")
     end
 
     it "sets error_code" do
       ctx = described_class.new
-      ctx.fail_with_rollback!("err", error_code: :gateway_timeout) rescue nil
+      begin
+        ctx.fail_with_rollback!("err", error_code: :gateway_timeout)
+      rescue
+        nil
+      end
       expect(ctx.error_code).to eq(:gateway_timeout)
     end
   end

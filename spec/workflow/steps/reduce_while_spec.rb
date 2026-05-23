@@ -4,10 +4,12 @@ require "actionflow"
 
 RSpec.describe Workflow::Steps::ReduceWhile do
   it "runs steps while condition is true" do
-    count = 0
     step = described_class.new(
       ->(ctx) { ctx[:count] < 3 },
-      [->(ctx) { ctx[:count] = (ctx[:count] || 0) + 1; ctx }]
+      [->(ctx) {
+        ctx[:count] = (ctx[:count] || 0) + 1
+        ctx
+      }]
     )
     ctx = Workflow::Context.new(count: 0)
     step.call(ctx)
@@ -17,7 +19,10 @@ RSpec.describe Workflow::Steps::ReduceWhile do
   it "stops when condition becomes false" do
     step = described_class.new(
       ->(ctx) { false },
-      [->(ctx) { ctx[:ran] = true; ctx }]
+      [->(ctx) {
+        ctx[:ran] = true
+        ctx
+      }]
     )
     ctx = Workflow::Context.new
     step.call(ctx)
@@ -28,7 +33,10 @@ RSpec.describe Workflow::Steps::ReduceWhile do
     ran = false
     step = described_class.new(
       ->(ctx) { true },
-      [->(ctx) { ran = true; ctx }]
+      [->(ctx) {
+        ran = true
+        ctx
+      }]
     )
     ctx = Workflow::Context.new
     ctx.fail!

@@ -27,7 +27,7 @@ module Workflow
         when "iterate"
           collection_key = step["collection"].to_sym
           steps = (step["steps"] || []).map { |s| compile_step(s) }
-          item_key = step["as"] ? step["as"].to_sym : nil
+          item_key = step["as"]&.to_sym
           Steps::Iterate.new(collection_key, steps, item_key: item_key)
         else
           # Linear step — resolve to action from registry

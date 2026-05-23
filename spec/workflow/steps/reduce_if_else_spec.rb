@@ -8,8 +8,14 @@ RSpec.describe Workflow::Steps::ReduceIfElse do
     else_ran = false
     step = described_class.new(
       ->(ctx) { true },
-      [->(ctx) { if_ran = true; ctx }],
-      [->(ctx) { else_ran = true; ctx }]
+      [->(ctx) {
+        if_ran = true
+        ctx
+      }],
+      [->(ctx) {
+        else_ran = true
+        ctx
+      }]
     )
     step.call(Workflow::Context.new)
     expect(if_ran).to eq(true)
@@ -21,8 +27,14 @@ RSpec.describe Workflow::Steps::ReduceIfElse do
     else_ran = false
     step = described_class.new(
       ->(ctx) { false },
-      [->(ctx) { if_ran = true; ctx }],
-      [->(ctx) { else_ran = true; ctx }]
+      [->(ctx) {
+        if_ran = true
+        ctx
+      }],
+      [->(ctx) {
+        else_ran = true
+        ctx
+      }]
     )
     step.call(Workflow::Context.new)
     expect(if_ran).to eq(false)
@@ -33,7 +45,10 @@ RSpec.describe Workflow::Steps::ReduceIfElse do
     if_ran = false
     step = described_class.new(
       ->(ctx) { true },
-      [->(ctx) { if_ran = true; ctx }],
+      [->(ctx) {
+        if_ran = true
+        ctx
+      }],
       []
     )
     ctx = Workflow::Context.new

@@ -105,7 +105,7 @@ RSpec.describe "Integration: full workflow" do
       send_receipt: SendReceipt.new(mailer: mailer)
     )
 
-    result = checkout.call(cart: ["item"], user: "Bob", amount: 50)
+    checkout.call(cart: ["item"], user: "Bob", amount: 50)
     expect(gateway).to have_received(:charge).with("Bob", 50)
   end
 
@@ -150,7 +150,10 @@ RSpec.describe "Integration: full workflow" do
     }.new
 
     result = organizer.with(x: 5).reduce(
-      ->(ctx) { ctx[:doubled] = ctx[:x] * 2; ctx }
+      ->(ctx) {
+        ctx[:doubled] = ctx[:x] * 2
+        ctx
+      }
     )
 
     expect(result[:doubled]).to eq(10)
@@ -162,7 +165,10 @@ RSpec.describe "Integration: full workflow" do
 
       def call(data)
         with(data).reduce(
-          ->(ctx) { ctx[:from_inner] = true; ctx }
+          ->(ctx) {
+            ctx[:from_inner] = true
+            ctx
+          }
         )
       end
     }
@@ -174,8 +180,15 @@ RSpec.describe "Integration: full workflow" do
     inner = inner_class.new
 
     result = outer.with(x: 1).reduce(
-      ->(ctx) { ctx[:x] += 1; ctx },
-      ->(ctx) { inner_result = inner.call(ctx.to_h); ctx[:from_inner] = inner_result[:from_inner]; ctx }
+      ->(ctx) {
+        ctx[:x] += 1
+        ctx
+      },
+      ->(ctx) {
+        inner_result = inner.call(ctx.to_h)
+        ctx[:from_inner] = inner_result[:from_inner]
+        ctx
+      }
     )
 
     expect(result[:x]).to eq(2)

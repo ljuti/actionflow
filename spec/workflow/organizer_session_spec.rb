@@ -14,7 +14,10 @@ RSpec.describe Workflow::OrganizerSession do
 
   it "reduce executes steps" do
     called = false
-    session.reduce([->(ctx) { called = true; ctx }])
+    session.reduce([->(ctx) {
+      called = true
+      ctx
+    }])
     expect(called).to eq(true)
   end
 
@@ -24,8 +27,10 @@ RSpec.describe Workflow::OrganizerSession do
 
     action = Class.new {
       include Workflow::Action
+
       expects :input
-      def call(ctx); end
+      def call(ctx)
+      end
     }.new
 
     session.before_each(hook)
@@ -39,8 +44,10 @@ RSpec.describe Workflow::OrganizerSession do
 
     action = Class.new {
       include Workflow::Action
+
       expects :input
-      def call(ctx); end
+      def call(ctx)
+      end
     }.new
 
     session.after_each(hook)
@@ -59,6 +66,7 @@ RSpec.describe Workflow::OrganizerSession do
 
     action = Class.new {
       include Workflow::Action
+
       expects :input
       def call(ctx)
         ctx[:ran] = true
@@ -79,9 +87,14 @@ RSpec.describe Workflow::OrganizerSession do
   end
 
   it "steps are flattened" do
-    result = nil
-    s1 = ->(ctx) { ctx[:one] = true; ctx }
-    s2 = ->(ctx) { ctx[:two] = true; ctx }
+    s1 = ->(ctx) {
+      ctx[:one] = true
+      ctx
+    }
+    s2 = ->(ctx) {
+      ctx[:two] = true
+      ctx
+    }
 
     result = session.reduce([[s1], [s2]])
     expect(result[:one]).to eq(true)

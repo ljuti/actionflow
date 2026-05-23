@@ -10,7 +10,10 @@ RSpec.describe "Integration: step composition" do
     result = organizer.with(items: [1, 2, 3, 4, 5]).reduce(
       Workflow::Steps::ReduceIf.new(
         ->(ctx) { ctx[:items].any? },
-        [Workflow::Steps::Iterate.new(:items, [->(ctx) { results << ctx[:item]; ctx }])]
+        [Workflow::Steps::Iterate.new(:items, [->(ctx) {
+          results << ctx[:item]
+          ctx
+        }])]
       )
     )
 
@@ -28,8 +31,14 @@ RSpec.describe "Integration: step composition" do
       Workflow::Steps::Iterate.new(:numbers, [
         Workflow::Steps::ReduceIfElse.new(
           ->(ctx) { ctx[:number].even? },
-          [->(ctx) { evens << ctx[:number]; ctx }],
-          [->(ctx) { odds << ctx[:number]; ctx }]
+          [->(ctx) {
+            evens << ctx[:number]
+            ctx
+          }],
+          [->(ctx) {
+            odds << ctx[:number]
+            ctx
+          }]
         )
       ])
     )
@@ -50,7 +59,11 @@ RSpec.describe "Integration: step composition" do
       organizer.iterate(:items, [
         organizer.reduce_if(
           ->(ctx) { ctx[:item] > ctx[:threshold] },
-          [->(ctx) { ctx[:big_items] ||= []; ctx[:big_items] << ctx[:item]; ctx }]
+          [->(ctx) {
+            ctx[:big_items] ||= []
+            ctx[:big_items] << ctx[:item]
+            ctx
+          }]
         )
       ])
     )
@@ -64,7 +77,10 @@ RSpec.describe "Integration: step composition" do
 
     result = organizer.with(x: 1).reduce(
       step,
-      ->(ctx) { ctx[:verified] = ctx[:computed] == true; ctx }
+      ->(ctx) {
+        ctx[:verified] = ctx[:computed] == true
+        ctx
+      }
     )
 
     expect(result[:computed]).to eq(true)
@@ -72,7 +88,10 @@ RSpec.describe "Integration: step composition" do
   end
 
   it "Execute wraps inline logic" do
-    step = Workflow::Steps::Execute.new(->(ctx) { ctx[:doubled] = ctx[:x] * 2; ctx })
+    step = Workflow::Steps::Execute.new(->(ctx) {
+      ctx[:doubled] = ctx[:x] * 2
+      ctx
+    })
     organizer = Class.new { include Workflow::Organizer }.new
 
     result = organizer.with(x: 7).reduce(step)

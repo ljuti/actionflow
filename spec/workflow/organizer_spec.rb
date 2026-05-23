@@ -37,7 +37,10 @@ RSpec.describe Workflow::Organizer do
 
   describe "#reduce" do
     it "shortcut works without explicit with" do
-      result = organizer.reduce(->(ctx) { ctx[:set] = true; ctx })
+      result = organizer.reduce(->(ctx) {
+        ctx[:set] = true
+        ctx
+      })
       expect(result[:set]).to eq(true)
     end
   end
