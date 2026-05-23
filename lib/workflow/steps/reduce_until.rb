@@ -10,11 +10,11 @@ module Workflow
 
       private
 
-      def execute(ctx)
+      def execute(ctx, action_runner:)
         until @condition.call(ctx)
           break if ctx.stop_processing?
 
-          scoped_reduce(ctx, @steps)
+          scoped_reduce(ctx, @steps, action_runner: action_runner)
         end
       end
     end

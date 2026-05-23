@@ -2,11 +2,7 @@
 
 module Workflow
   class Configuration
-    attr_accessor :logger, :localization_adapter, :strict_context_access
-
-    def initialize
-      @strict_context_access = false
-    end
+    attr_accessor :logger, :localization_adapter
   end
 
   class << self

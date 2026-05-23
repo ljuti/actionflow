@@ -201,4 +201,27 @@ RSpec.describe Workflow::Steps::ReduceIfElse do
     step.call(ctx)
     expect(ctx[:done]).to eq(true)
   end
+
+  it "passes action_runner through to else branch" do
+    hook_log = []
+    before_hook = ->(action, ctx) { hook_log << action.class.name }
+
+    stub_const("ElseAction", Class.new do
+      include Workflow::Action
+
+      promises :else_done
+
+      def call(ctx)
+        ctx[:else_done] = true
+      end
+    end)
+
+    runner = Workflow::ActionRunner.new(before_hooks: [before_hook])
+    step = described_class.new(->(_ctx) { false }, [], [ElseAction.new])
+    ctx = Workflow::Context.new
+    step.call(ctx, action_runner: runner)
+
+    expect(ctx[:else_done]).to eq(true)
+    expect(hook_log).to eq(["ElseAction"])
+  end
 end

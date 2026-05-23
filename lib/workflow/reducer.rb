@@ -2,9 +2,8 @@
 
 module Workflow
   class Reducer
-    def initialize(action_runner:, rollback_strategy: RollbackStrategy.new)
+    def initialize(action_runner:)
       @action_runner = action_runner
-      @rollback_strategy = rollback_strategy
     end
 
     def reduce(ctx, steps)
@@ -16,7 +15,7 @@ module Workflow
         executed_steps << step
         invoke(step, ctx)
       rescue FailWithRollback
-        @rollback_strategy.rollback(ctx, executed_steps.reverse)
+        rollback(ctx, executed_steps.reverse)
       end
 
       ctx
@@ -27,6 +26,8 @@ module Workflow
     def invoke(step, ctx)
       if workflow_action?(step)
         @action_runner.call(step, ctx)
+      elsif step.is_a?(Step)
+        step.call(ctx, action_runner: @action_runner)
       else
         step.call(ctx)
       end
@@ -34,6 +35,12 @@ module Workflow
 
     def workflow_action?(step)
       step.respond_to?(:workflow_metadata)
+    end
+
+    def rollback(ctx, steps)
+      steps.each do |step|
+        step.rollback(ctx) if step.respond_to?(:rollback)
+      end
     end
   end
 end

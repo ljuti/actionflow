@@ -194,4 +194,30 @@ RSpec.describe "Integration: full workflow" do
     expect(result[:x]).to eq(2)
     expect(result[:from_inner]).to eq(true)
   end
+  it "fires session hooks inside control-flow step branches" do
+    hook_log = []
+    hook = ->(action, ctx) { hook_log << action.class.name }
+
+    stub_const("RecordStep", Class.new do
+      include Workflow::Action
+
+      promises :recorded
+
+      def call(ctx)
+        ctx[:recorded] = true
+      end
+    end)
+
+    organizer = Object.new
+    organizer.extend(Workflow::Organizer)
+
+    result = organizer.with(recorded: false)
+      .before_each(hook)
+      .reduce(
+        organizer.reduce_if(->(ctx) { true }, [RecordStep.new])
+      )
+
+    expect(result[:recorded]).to eq(true)
+    expect(hook_log).to eq(["RecordStep"])
+  end
 end

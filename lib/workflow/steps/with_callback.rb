@@ -11,11 +11,11 @@ module Workflow
 
       private
 
-      def execute(ctx)
-        scoped_reduce(ctx, @steps)
+      def execute(ctx, action_runner:)
+        scoped_reduce(ctx, @steps, action_runner: action_runner)
 
         ctx[@callback_key] = ->(callback_ctx) {
-          scoped_reduce(callback_ctx, @callback_steps)
+          scoped_reduce(callback_ctx, @callback_steps, action_runner: action_runner)
           callback_ctx
         }
       end

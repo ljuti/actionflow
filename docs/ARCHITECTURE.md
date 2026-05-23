@@ -76,7 +76,7 @@ flowchart TD
         CTX["Context"]
         META["ActionMetadata"]
         CF["Control-Flow Steps"]
-        ROLL["RollbackStrategy"]
+        ROLL["Reducer.rollback"]
     end
 
     subgraph Actions["Action Objects"]
@@ -153,13 +153,7 @@ Key design decisions:
 ### 4.3 Dynamic accessors (optional)
 
 Context may provide `method_missing`-based accessors (`ctx.amount`,
-`ctx.charge = val`). A strict mode configuration should catch typos:
-
-```ruby
-Workflow.configure do |config|
-  config.strict_context_access = true
-end
-```
+`ctx.charge = val`).
 
 ---
 
@@ -256,20 +250,18 @@ The following context keys are reserved and must not appear in `expects` or
 
 `Reducer` executes a sequence of steps, handling rollback on failure.
 
-### 7.1 Step types
+### 7.1 Step dispatch
 
-A step can be:
-1. A workflow action (responds to `#workflow_metadata`)
-2. A control-flow object (`ReduceIf`, `Iterate`, etc.)
-3. A lambda or any callable (`respond_to?(:call)`)
-4. A nested organizer
+The reducer dispatches each step based on its type:
+1. **Workflow actions** (responds to `#workflow_metadata`) → through `ActionRunner` with full lifecycle
+2. **Control-flow steps** (inherits `Workflow::Step`) → `step.call(ctx, action_runner:)` to propagate session hooks into nested reductions
+3. **Plain callables** (lambdas, nested organizers) → `step.call(ctx)` directly
 
 ### 7.2 Rollback
 
 When `ctx.fail_with_rollback!` raises `FailWithRollback`, the reducer:
 1. Catches the exception.
-2. Passes executed steps in **reverse order** to `RollbackStrategy`.
-3. Calls `#rollback(ctx)` on each step that responds to it.
+2. Iterates executed steps in **reverse order**, calling `#rollback(ctx)` on each that responds to it.
 
 ---
 
@@ -305,7 +297,7 @@ session.reduce(step1, step2, step3)
 
 Each control-flow construct is a dedicated class in `Workflow::Steps::*`,
 inheriting from `Workflow::Step`, which provides the `stop_processing?` guard
-and `scoped_reduce` (nested reduction with skip-scope reset).
+and `scoped_reduce` (nested reduction with skip-scope reset and hook propagation).
 
 ### 9.1 Step inventory
 
@@ -365,7 +357,7 @@ Raises `Workflow::FailWithRollback`, caught by the reducer.
 
 ### 11.2 Strategy
 
-`RollbackStrategy#rollback(ctx, executed_steps)` iterates steps in reverse
+`Reducer#rollback(ctx, executed_steps)` iterates steps in reverse
 order, calling `#rollback(ctx)` on each that responds to it.
 
 ### 11.3 Action rollback

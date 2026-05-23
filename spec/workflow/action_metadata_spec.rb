@@ -14,10 +14,6 @@ RSpec.describe Workflow::ActionMetadata do
       expect(metadata.promised_keys).to eq([])
     end
 
-    it "has empty optional_keys" do
-      expect(metadata.optional_keys).to eq([])
-    end
-
     it "has empty defaults" do
       expect(metadata.defaults).to eq({})
     end
@@ -28,7 +24,6 @@ RSpec.describe Workflow::ActionMetadata do
       described_class.new(
         expected_keys: [:user, :amount],
         promised_keys: [:charge],
-        optional_keys: [:note],
         defaults: {flag: true}
       )
     end
@@ -39,10 +34,6 @@ RSpec.describe Workflow::ActionMetadata do
 
     it "returns promised_keys as an Array of Symbols" do
       expect(metadata.promised_keys).to eq(%i[charge])
-    end
-
-    it "returns optional_keys as an Array of Symbols" do
-      expect(metadata.optional_keys).to eq(%i[note])
     end
 
     it "returns defaults as a Hash" do

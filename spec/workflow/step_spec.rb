@@ -16,7 +16,7 @@ RSpec.describe Workflow::Step do
       step = Class.new(described_class) do
         private
 
-        def execute(ctx)
+        def execute(ctx, action_runner:)
           ctx[:executed] = true
         end
       end.new
@@ -34,7 +34,7 @@ RSpec.describe Workflow::Step do
       step = Class.new(described_class) do
         private
 
-        def execute(ctx)
+        def execute(ctx, action_runner:)
           ctx[:executed] = true
         end
       end.new
@@ -51,7 +51,7 @@ RSpec.describe Workflow::Step do
       step = Class.new(described_class) do
         private
 
-        def execute(ctx)
+        def execute(ctx, action_runner:)
           ctx[:executed] = true
         end
       end.new
@@ -68,7 +68,7 @@ RSpec.describe Workflow::Step do
       step = Class.new(described_class) do
         private
 
-        def execute(ctx)
+        def execute(ctx, action_runner:)
           ctx[:executed] = true
         end
       end.new
@@ -79,10 +79,42 @@ RSpec.describe Workflow::Step do
       expect(result).to equal(ctx)
       expect(ctx[:executed]).to eq(true)
     end
+
+    it "passes action_runner through to execute" do
+      step = Class.new(described_class) do
+        private
+
+        def execute(ctx, action_runner:)
+          ctx[:runner] = action_runner
+        end
+      end.new
+
+      custom_runner = Workflow::ActionRunner.new
+      ctx = Workflow::Context.new
+      step.call(ctx, action_runner: custom_runner)
+
+      expect(ctx[:runner]).to equal(custom_runner)
+    end
+
+    it "defaults to ActionRunner.default when no runner given" do
+      step = Class.new(described_class) do
+        private
+
+        def execute(ctx, action_runner:)
+          ctx[:runner_class] = action_runner.class
+        end
+      end.new
+
+      ctx = Workflow::Context.new
+      step.call(ctx)
+
+      expect(ctx[:runner_class]).to eq(Workflow::ActionRunner)
+    end
   end
 
   describe "#scoped_reduce" do
     let(:step) { described_class.new }
+    let(:runner) { Workflow::ActionRunner.new }
 
     it "runs steps through the reducer" do
       ran = false
@@ -90,11 +122,11 @@ RSpec.describe Workflow::Step do
       step.send(:scoped_reduce, ctx, [->(c) {
         ran = true
         c
-      }])
+      }], action_runner: runner)
       expect(ran).to eq(true)
     end
 
-    it "runs workflow actions through ActionRunner" do
+    it "runs workflow actions through the provided ActionRunner" do
       action = Class.new do
         include Workflow::Action
 
@@ -110,7 +142,7 @@ RSpec.describe Workflow::Step do
       end.new
 
       ctx = Workflow::Context.new
-      step.send(:scoped_reduce, ctx, [action])
+      step.send(:scoped_reduce, ctx, [action], action_runner: runner)
       expect(ctx[:result]).to eq(:done)
     end
 
@@ -119,7 +151,7 @@ RSpec.describe Workflow::Step do
       step.send(:scoped_reduce, ctx, [->(c) {
         c.skip_remaining!
         c
-      }])
+      }], action_runner: runner)
       expect(ctx).not_to be_skip_remaining
     end
 
@@ -128,7 +160,7 @@ RSpec.describe Workflow::Step do
       step.send(:scoped_reduce, ctx, [->(c) {
         c.fail!("err")
         c
-      }])
+      }], action_runner: runner)
       expect(ctx).to be_failure
       expect(ctx.message).to eq("err")
     end
@@ -138,7 +170,7 @@ RSpec.describe Workflow::Step do
       step.send(:scoped_reduce, ctx, [->(c) {
         c.skip_all_remaining!("msg")
         c
-      }])
+      }], action_runner: runner)
       expect(ctx).to be_skip_all_remaining
       expect(ctx.message).to eq("msg")
     end

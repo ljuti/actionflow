@@ -148,8 +148,10 @@ calling directly, with rollback support.
 - Workflow actions (respond to `#workflow_metadata`) are dispatched through
   the action runner.
 - Non-workflow callables are invoked with `step.call(ctx)` directly.
-- On `FailWithRollback`, delegates to `RollbackStrategy` with steps in
-  reverse execution order.
+- `Workflow::Step` subclasses receive the session's `ActionRunner` via
+  `step.call(ctx, action_runner:)` so hooks propagate into nested reductions.
+- On `FailWithRollback`, rolls back executed steps in reverse execution order,
+  calling `#rollback(ctx)` where available.
 - Returns `ctx` in all cases.
 
 ---
@@ -197,25 +199,6 @@ Accumulates hooks and executes the reducer. Created by `Organizer#with`.
 
 ---
 
-## `Workflow::RollbackStrategy` — compensation executor
-
-Walks executed steps in reverse order, calling `#rollback` where available.
-
-| Field     | Value                                 |
-| --------- | ------------------------------------- |
-| Purpose   | Execute compensating actions on failure |
-| Shape     | `#rollback(ctx, executed_steps)`       |
-| File      | `lib/workflow/rollback_strategy.rb`   |
-| Spec      | `spec/workflow/reducer_spec.rb` (tested via reducer rollback scenarios) |
-
-**Invariants:**
-
-- Iterates steps in reverse execution order.
-- Calls `#rollback(ctx)` only on steps that `respond_to?(:rollback)`.
-- Does not raise on steps without `#rollback`.
-- Returns `ctx`.
-
----
 
 ## `Workflow::Steps::ReduceIf` — conditional execution
 

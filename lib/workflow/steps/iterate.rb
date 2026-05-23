@@ -11,7 +11,7 @@ module Workflow
 
       private
 
-      def execute(ctx)
+      def execute(ctx, action_runner:)
         collection = ctx[@collection_key]
         item_key = @item_key || singularize(@collection_key)
 
@@ -19,7 +19,7 @@ module Workflow
           break if ctx.stop_processing?
 
           ctx[item_key] = item
-          scoped_reduce(ctx, @steps)
+          scoped_reduce(ctx, @steps, action_runner: action_runner)
         end
       end
 

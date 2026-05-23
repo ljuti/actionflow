@@ -13,15 +13,6 @@ RSpec.describe Workflow::Configuration do
     expect(config.localization_adapter).to be_nil
   end
 
-  it "has strict_context_access false by default" do
-    expect(config.strict_context_access).to eq(false)
-  end
-
-  it "has strict_context_access as exactly false (not nil)" do
-    expect(config.strict_context_access).to be(false)
-    expect(config.strict_context_access).not_to be_nil
-  end
-
   it "allows setting logger" do
     logger = instance_double("Logger")
     config.logger = logger
@@ -32,11 +23,6 @@ RSpec.describe Workflow::Configuration do
     adapter = instance_double("LocalizationAdapter")
     config.localization_adapter = adapter
     expect(config.localization_adapter).to eq(adapter)
-  end
-
-  it "allows setting strict_context_access" do
-    config.strict_context_access = true
-    expect(config.strict_context_access).to eq(true)
   end
 end
 
@@ -56,9 +42,9 @@ RSpec.describe "Workflow.configuration" do
 
   it "can be configured via Workflow.configure" do
     Workflow.configure do |c|
-      c.strict_context_access = true
+      c.logger = :test_logger
     end
 
-    expect(Workflow.configuration.strict_context_access).to eq(true)
+    expect(Workflow.configuration.logger).to eq(:test_logger)
   end
 end

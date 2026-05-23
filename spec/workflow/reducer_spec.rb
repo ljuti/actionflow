@@ -114,18 +114,73 @@ RSpec.describe Workflow::Reducer do
     expect(reducer.reduce(ctx, [])).to equal(ctx)
   end
 
+  it "passes action_runner to Step subclasses" do
+    received_runner = nil
+    step = Class.new(Workflow::Step) do
+      private
+
+      def execute(ctx, action_runner:)
+        ctx[:stepped] = true
+      end
+    end.new
+
+    # Override call to capture the runner
+    step.define_singleton_method(:call) do |ctx, action_runner:|
+      received_runner = action_runner
+      super(ctx, action_runner: action_runner)
+    end
+
+    ctx = reducer.reduce(Workflow::Context.new, [step])
+    expect(ctx[:stepped]).to eq(true)
+    expect(received_runner).to equal(runner)
+  end
+
+  it "passes action_runner through Step to scoped_reduce" do
+    hook_log = []
+    before_hook = ->(action, ctx) { hook_log << action.class.name }
+
+    hooked_runner = Workflow::ActionRunner.new(before_hooks: [before_hook])
+    hooked_reducer = described_class.new(action_runner: hooked_runner)
+
+    stub_const("NestedAction", Class.new do
+      include Workflow::Action
+
+      promises :done
+
+      def call(ctx)
+        ctx[:done] = true
+      end
+    end)
+
+    step = Workflow::Steps::ReduceIf.new(->(ctx) { true }, [NestedAction.new])
+
+    ctx = hooked_reducer.reduce(Workflow::Context.new, [step])
+    expect(ctx[:done]).to eq(true)
+    expect(hook_log).to eq(["NestedAction"])
+  end
+
   describe "rollback" do
-    it "triggers rollback on FailWithRollback with correct context" do
-      rollback_spy = instance_spy(Workflow::RollbackStrategy)
-      allow(rollback_spy).to receive(:rollback) { |ctx, _steps| ctx }
+    # Lightweight step double that responds to :call and :rollback
+    def rollback_step(name, on_call: nil, on_rollback: nil)
+      step = Object.new
+      step.define_singleton_method(:call) do |ctx|
+        on_call&.call(ctx)
+        ctx
+      end
+      step.define_singleton_method(:rollback) { |ctx| on_rollback&.call(ctx) }
+      step
+    end
 
-      r = described_class.new(action_runner: runner, rollback_strategy: rollback_spy)
-      step = ->(ctx) { ctx.fail_with_rollback!("boom") }
-      input_ctx = Workflow::Context.new
+    it "calls rollback on executed steps when FailWithRollback is raised" do
+      rolled_back = []
 
-      r.reduce(input_ctx, [step])
+      s1 = rollback_step("s1", on_rollback: ->(ctx) { rolled_back << :s1 })
+      s2 = Object.new
+      s2.define_singleton_method(:call) { |ctx| ctx.fail_with_rollback!("boom") }
+      s2.define_singleton_method(:rollback) { |ctx| rolled_back << :s2 }
 
-      expect(rollback_spy).to have_received(:rollback).with(input_ctx, any_args)
+      reducer.reduce(Workflow::Context.new, [s1, s2])
+      expect(rolled_back).to eq([:s2, :s1])
     end
 
     it "stops executing after rollback" do
@@ -155,51 +210,40 @@ RSpec.describe Workflow::Reducer do
       expect(order).to eq([])
     end
 
-    it "only rolled-back steps are passed to strategy" do
-      rolled_back = nil
+    it "only rolls back executed steps" do
+      rolled_back = []
 
-      custom_strategy = instance_double(Workflow::RollbackStrategy)
-      allow(custom_strategy).to receive(:rollback) { |ctx, steps|
-        rolled_back = steps
-      }
-
-      r = described_class.new(action_runner: runner, rollback_strategy: custom_strategy)
-      s1 = ->(ctx) {
-        ctx[:step1] = true
-        ctx
-      }
-      s2 = ->(ctx) { ctx.fail_with_rollback!("boom") }
+      s1 = rollback_step("s1",
+        on_call: ->(ctx) { ctx[:step1] = true },
+        on_rollback: ->(ctx) { rolled_back << :s1 })
+      s2 = Object.new
+      s2.define_singleton_method(:call) { |ctx| ctx.fail_with_rollback!("boom") }
+      s2.define_singleton_method(:rollback) { |ctx| rolled_back << :s2 }
       s3 = ->(ctx) {
         ctx[:step3] = true
         ctx
       }
 
-      r.reduce(Workflow::Context.new, [s1, s2, s3])
-      expect(rolled_back.length).to eq(2)
+      reducer.reduce(Workflow::Context.new, [s1, s2, s3])
+      expect(rolled_back).to eq([:s2, :s1])
     end
 
     # Kill: executed_steps.reverse → executed_steps
-    it "passes steps to rollback in reverse execution order" do
-      rolled_back_steps = nil
-      custom_strategy = instance_double(Workflow::RollbackStrategy)
-      allow(custom_strategy).to receive(:rollback) { |ctx, steps|
-        rolled_back_steps = steps
-        ctx
-      }
+    it "rolls back steps in reverse execution order" do
+      rolled_back_steps = []
 
-      r = described_class.new(action_runner: runner, rollback_strategy: custom_strategy)
-      s1 = ->(ctx) {
-        ctx[:a] = 1
-        ctx
-      }
-      s2 = ->(ctx) {
-        ctx[:b] = 2
-        ctx
-      }
-      s3 = ->(ctx) { ctx.fail_with_rollback!("boom") }
+      s1 = rollback_step("s1",
+        on_call: ->(ctx) { ctx[:a] = 1 },
+        on_rollback: ->(ctx) { rolled_back_steps << :s1 })
+      s2 = rollback_step("s2",
+        on_call: ->(ctx) { ctx[:b] = 2 },
+        on_rollback: ->(ctx) { rolled_back_steps << :s2 })
+      s3 = Object.new
+      s3.define_singleton_method(:call) { |ctx| ctx.fail_with_rollback!("boom") }
+      s3.define_singleton_method(:rollback) { |ctx| rolled_back_steps << :s3 }
 
-      r.reduce(Workflow::Context.new, [s1, s2, s3])
-      expect(rolled_back_steps).to eq([s3, s2, s1])
+      reducer.reduce(Workflow::Context.new, [s1, s2, s3])
+      expect(rolled_back_steps).to eq([:s3, :s2, :s1])
     end
 
     # Kill: remove rescue FailWithRollback
@@ -208,6 +252,38 @@ RSpec.describe Workflow::Reducer do
       expect {
         reducer.reduce(Workflow::Context.new, [step])
       }.not_to raise_error
+    end
+
+    it "skips steps without rollback method" do
+      rolled_back = []
+
+      s1 = ->(ctx) { ctx }
+      s2 = Object.new
+      s2.define_singleton_method(:call) { |ctx| ctx.fail_with_rollback!("boom") }
+      s2.define_singleton_method(:rollback) { |ctx| rolled_back << :s2 }
+
+      reducer.reduce(Workflow::Context.new, [s1, s2])
+      expect(rolled_back).to eq([:s2])
+    end
+
+    it "passes the original context to rollback" do
+      received_ctx = nil
+
+      s1 = Object.new
+      s1.define_singleton_method(:call) do |ctx|
+        ctx[:marker] = true
+        ctx
+      end
+      s1.define_singleton_method(:rollback) { |ctx| received_ctx = ctx }
+
+      s2 = Object.new
+      s2.define_singleton_method(:call) { |ctx| ctx.fail_with_rollback!("boom") }
+
+      input = Workflow::Context.new
+      reducer.reduce(input, [s1, s2])
+
+      expect(received_ctx).to equal(input)
+      expect(received_ctx[:marker]).to eq(true)
     end
   end
 end

@@ -11,11 +11,11 @@ module Workflow
 
       private
 
-      def execute(ctx)
+      def execute(ctx, action_runner:)
         if @condition.call(ctx)
-          scoped_reduce(ctx, @if_steps)
+          scoped_reduce(ctx, @if_steps, action_runner: action_runner)
         else
-          scoped_reduce(ctx, @else_steps)
+          scoped_reduce(ctx, @else_steps, action_runner: action_runner)
         end
       end
     end

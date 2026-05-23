@@ -12,7 +12,6 @@ module Workflow
   autoload :Organizer, "workflow/organizer"
   autoload :OrganizerSession, "workflow/organizer_session"
   autoload :Reducer, "workflow/reducer"
-  autoload :RollbackStrategy, "workflow/rollback_strategy"
   autoload :Localization, "workflow/localization"
 
   module Steps
