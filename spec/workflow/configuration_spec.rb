@@ -25,6 +25,10 @@ RSpec.describe Workflow::Configuration do
     expect(config.around_hooks).to eq([])
   end
 
+  it "has nil capture_exceptions by default" do
+    expect(config.capture_exceptions).to be_nil
+  end
+
   it "allows setting logger" do
     logger = instance_double("Logger")
     config.logger = logger
@@ -53,6 +57,11 @@ RSpec.describe Workflow::Configuration do
     hook = ->(*_, &blk) { blk.call }
     config.around_hooks = [hook]
     expect(config.around_hooks).to eq([hook])
+  end
+
+  it "allows setting capture_exceptions" do
+    config.capture_exceptions = true
+    expect(config.capture_exceptions).to eq(true)
   end
 end
 

@@ -353,4 +353,71 @@ RSpec.describe Workflow::Context do
       expect(ctx.organized_by).to eq(organizer)
     end
   end
+
+  describe "dynamic accessors" do
+    it "reads context values via method call" do
+      ctx = described_class.new(amount: 100)
+      expect(ctx.amount).to eq(100)
+    end
+
+    it "writes context values via method assignment" do
+      ctx = described_class.new
+      ctx.charge = 50
+      expect(ctx[:charge]).to eq(50)
+    end
+
+    it "responds to? for existing keys" do
+      ctx = described_class.new(amount: 100)
+      expect(ctx.respond_to?(:amount)).to be(true)
+    end
+
+    it "responds to? for setter of existing keys" do
+      ctx = described_class.new(amount: 100)
+      expect(ctx.respond_to?(:amount=)).to be(true)
+    end
+
+    it "does not respond to? for missing keys" do
+      ctx = described_class.new
+      expect(ctx.respond_to?(:nonexistent)).to be(false)
+    end
+
+    it "respond_to? returns false for missing keys with include_private flag" do
+      ctx = described_class.new
+      expect(ctx.respond_to?(:nonexistent, true)).to be(false)
+    end
+
+    it "respond_to? with include_private true returns true for existing keys" do
+      ctx = described_class.new(amount: 100)
+      expect(ctx.respond_to?(:amount, true)).to be(true)
+    end
+
+    it "respond_to? works with setter symbol names" do
+      ctx = described_class.new(foo: 1)
+      expect(ctx.respond_to?(:"foo=")).to be(true)
+    end
+
+    it "delegates to super for non-key methods via respond_to?" do
+      ctx = described_class.new
+      expect(ctx.respond_to?(:to_s)).to be(true)
+    end
+
+    it "raises NoMethodError for missing getter" do
+      ctx = described_class.new
+      expect { ctx.nonexistent }.to raise_error(NoMethodError)
+    end
+
+    it "allows setting new keys via dynamic setter" do
+      ctx = described_class.new
+      ctx.new_key = "value"
+      expect(ctx[:new_key]).to eq("value")
+    end
+
+    it "reads and writes through aliases" do
+      ctx = described_class.new(user_id: 42)
+      ctx.assign_aliases(uid: :user_id)
+      expect(ctx.uid).to eq(42)
+      ctx.uid = 99
+      expect(ctx[:user_id]).to eq(99)
+    end
+  end
 end

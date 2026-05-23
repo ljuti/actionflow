@@ -9,12 +9,12 @@
 
 | Section | Feature | File |
 |---|---|---|
-| §5 | Context core (`[]`, `[]=`, `key?`, `to_h`, `fail!`, `skip_*`, aliases, `fail_with_rollback!`) | `lib/workflow/context.rb` |
-| §6 | Action module (`expects`, `promises`, `workflow_metadata`, `execute`) | `lib/workflow/action.rb` |
+| §5 | Context core (`[]`, `[]=`, `key?`, `to_h`, `fail!`, `skip_*`, aliases, `fail_with_rollback!`, dynamic accessors) | `lib/workflow/context.rb` |
+| §6 | Action module (`expects`, `promises`, `workflow_metadata`, `execute`, `describe`) | `lib/workflow/action.rb` |
 | §6 | ActionMetadata (`expected_keys`, `promised_keys`, `defaults`) | `lib/workflow/action_metadata.rb` |
 | §7 | ActionRunner full lifecycle (defaults, verify, hooks, call, verify promised) | `lib/workflow/action_runner.rb` |
 | §8 | Reducer (step dispatch, rollback on `FailWithRollback`) | `lib/workflow/reducer.rb` |
-| §9 | Organizer (`with`, `reduce`, control-flow builders) | `lib/workflow/organizer.rb` |
+| §9 | Organizer (`with`, `reduce`, control-flow builders, `describe`) | `lib/workflow/organizer.rb` |
 | §9 | OrganizerSession (hook accumulation, chained reduce) | `lib/workflow/organizer_session.rb` |
 | §10 | Step base class (stop guard, `scoped_reduce`, hook propagation) | `lib/workflow/step.rb` |
 | §10 | All 10 control-flow steps | `lib/workflow/steps/*.rb` |
@@ -24,6 +24,7 @@
 | §14 | Instance-specific metadata (override `#workflow_metadata`) | `lib/workflow/action.rb` |
 | §16 | Localization (adapter-based, `NullAdapter`, `HashAdapter`) | `lib/workflow/localization.rb` |
 | §18 | ContextFactory | `lib/workflow/testing/context_factory.rb` |
+| §18 | RSpec matchers (`expect_keys`, `promise_keys`, `have_context_value`) | `lib/workflow/testing/rspec_matchers.rb` |
 | §26 | Capability | `lib/workflow/ai/capability.rb` |
 | §26 | CapabilityRegistry | `lib/workflow/ai/capability_registry.rb` |
 | §28 | Plan | `lib/workflow/ai/plan.rb` |
@@ -53,27 +54,23 @@
 
 ---
 
-## Gaps — Enhancements (Optional per Blueprint)
+## Implemented Enhancements
 
-### 5. Dynamic context accessors
+### 5. Dynamic context accessors ✅
 - **Section:** §5
-- **Description:** `method_missing` / `respond_to_missing?` for `ctx.amount`, `ctx.charge = val`.
-- **Status:** ❌ Not implemented. Blueprint says "consider strict mode."
+- `method_missing` / `respond_to_missing?` on Context. Getter reads by key, setter writes by key, `NoMethodError` for unknown getters.
 
-### 6. RSpec matchers
+### 6. RSpec matchers ✅
 - **Section:** §18
-- **Description:** `expect_keys`, `promise_keys`, `have_context_value`.
-- **Status:** ❌ Blueprint marks these "potential."
+- `Workflow::Testing::RSpecMatchers` — `expect_keys`, `promise_keys`, `have_context_value`. Include in RSpec config or per-example group.
 
-### 7. Introspection / `describe` API
+### 7. Introspection / `describe` API ✅
 - **Section:** §17
-- **Description:** `workflow.describe` returning step metadata.
-- **Status:** ❌ Blueprint says "could become a major feature."
+- `Action#describe` returns `{name:, expects:, promises:}`. `Organizer#describe(steps)` returns array of metadata for all steps.
 
-### 8. `capture_exceptions` config
+### 8. `capture_exceptions` config ✅
 - **Section:** §15
-- **Description:** Convert raised exceptions into failed contexts.
-- **Status:** ❌ Blueprint says "this should not be the default."
+- `Configuration#capture_exceptions = true` converts exceptions to failed contexts (`ctx.fail!(message, error_code: class_name)`). `FailWithRollback` always re-raised. Default: `nil` (exceptions bubble).
 
 ---
 

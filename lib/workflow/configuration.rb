@@ -3,7 +3,7 @@
 module Workflow
   class Configuration
     attr_accessor :logger, :localization_adapter,
-      :before_hooks, :after_hooks, :around_hooks
+      :before_hooks, :after_hooks, :around_hooks, :capture_exceptions
 
     def initialize
       @before_hooks = []

@@ -27,5 +27,19 @@ module Workflow
     def execute(code_block = nil, &block)
       Steps::Execute.new(code_block || block)
     end
+
+    def describe(steps)
+      Array(steps).flatten.map { |step| describe_step(step) }
+    end
+
+    private
+
+    def describe_step(step)
+      if step.respond_to?(:describe)
+        step.describe
+      else
+        {name: step.class.name || step.inspect, expects: [], promises: []}
+      end
+    end
   end
 end

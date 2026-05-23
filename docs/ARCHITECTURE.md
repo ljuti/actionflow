@@ -150,10 +150,14 @@ Key design decisions:
 | `reset_skip_remaining!` | Clear skip flags (used by control-flow)    |
 | `assign_aliases(map)`   | Register key aliases                       |
 
-### 4.3 Dynamic accessors (optional)
+### 4.3 Dynamic accessors
 
-Context may provide `method_missing`-based accessors (`ctx.amount`,
-`ctx.charge = val`).
+Context provides `method_missing`-based accessors:
+
+- `ctx.amount` — reads `ctx[:amount]`, raises `NoMethodError` if key doesn't exist
+- `ctx.charge = val` — sets `ctx[:charge] = val` (works for new keys too)
+- `ctx.respond_to?(:amount)` — returns `true` if key exists
+- Works transparently with aliases
 
 ---
 
@@ -230,7 +234,8 @@ ActionRunner.new(
   before_hooks: [],
   after_hooks: [],
   around_hooks: [],
-  logger: nil
+  logger: nil,
+  capture_exceptions: false
 )
 ```
 
@@ -248,7 +253,22 @@ Workflow.configure do |c|
 end
 ```
 
-### 6.3 Reserved keys
+### 6.3 Exception capture
+
+When `capture_exceptions` is enabled, exceptions raised during `action.call(ctx)` are converted to failed contexts instead of bubbling up:
+
+```ruby
+Workflow.configure do |c|
+  c.capture_exceptions = true
+end
+```
+
+- `ctx.fail!(exception.message, error_code: exception.class.name.to_sym)`
+- `FailWithRollback` is always re-raised (never captured)
+- Promised keys verification is skipped on captured failures
+- Default: `nil` (exceptions bubble up)
+
+### 6.4 Reserved keys
 
 The following context keys are reserved and must not appear in `expects` or
 `promises`. Using them raises `ArgumentError` at class definition time:
@@ -431,11 +451,19 @@ Produces the context state immediately before the specified action runs.
 ### 13.2 RSpec matchers
 
 ```ruby
+# In spec_helper.rb or a shared context:
+RSpec.configure do |c|
+  c.include Workflow::Testing::RSpecMatchers
+end
+
+# Usage:
 expect(action).to expect_keys(:user, :amount)
 expect(action).to promise_keys(:charge)
 expect(result).to be_success
 expect(result).to have_context_value(:charge)
 ```
+
+Works with action instances and action classes.
 
 ### 13.3 Testing patterns
 
@@ -458,6 +486,27 @@ result = checkout.call(cart: cart, user: user, amount: 100)
 
 expect(result).to be_success
 ```
+
+### 13.4 Introspection
+
+Query action and organizer metadata at runtime:
+
+```ruby
+# Single action
+action = ChargeCard.new(payment_gateway: gateway)
+action.describe
+# => { name: "ChargeCard", expects: [:user, :amount], promises: [:charge] }
+
+# Full organizer pipeline
+organizer.describe([validate_cart, charge_card, send_receipt])
+# => [
+#   { name: "ValidateCart", expects: [:cart], promises: [] },
+#   { name: "ChargeCard", expects: [:user, :amount], promises: [:charge] },
+#   { name: "SendReceipt", expects: [:user, :charge], promises: [] }
+# ]
+```
+
+Non-action callables (lambdas, procs) return `{ name: "Proc", expects: [], promises: [] }`.
 
 ---
 

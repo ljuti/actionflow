@@ -31,7 +31,8 @@ module Workflow
         before_hooks: config.before_hooks + @before_hooks,
         after_hooks: config.after_hooks + @after_hooks,
         around_hooks: config.around_hooks + @around_hooks,
-        logger: config.logger
+        logger: config.logger,
+        capture_exceptions: config.capture_exceptions
       )
 
       reducer = Reducer.new(action_runner: runner)

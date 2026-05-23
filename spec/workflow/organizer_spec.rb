@@ -218,4 +218,98 @@ RSpec.describe Workflow::Organizer do
       expect(result).to be_success
     end
   end
+
+  describe "#describe" do
+    it "returns metadata array for action steps" do
+      action = Class.new do
+        include Workflow::Action
+
+        expects :user
+        promises :token
+
+        def self.name
+          "Authenticate"
+        end
+
+        def call(ctx)
+        end
+      end.new
+
+      result = organizer.describe([action])
+      expect(result).to eq([
+        {name: "Authenticate", expects: [:user], promises: [:token]}
+      ])
+    end
+
+    it "handles non-action callables" do
+      lambda_step = ->(ctx) { ctx }
+      result = organizer.describe([lambda_step])
+      expect(result.length).to eq(1)
+      expect(result[0][:name]).to eq("Proc")
+      expect(result[0][:expects]).to eq([])
+      expect(result[0][:promises]).to eq([])
+    end
+
+    it "flattens nested step arrays" do
+      action = Class.new do
+        include Workflow::Action
+
+        def self.name
+          "A"
+        end
+
+        def call(ctx)
+        end
+      end.new
+
+      result = organizer.describe([[action]])
+      expect(result).to eq([{name: "A", expects: [], promises: []}])
+    end
+
+    it "returns empty array for no steps" do
+      result = organizer.describe([])
+      expect(result).to eq([])
+    end
+
+    it "returns empty array for nil input" do
+      result = organizer.describe(nil)
+      expect(result).to eq([])
+    end
+
+    it "accepts a single action without array wrapper" do
+      action = Class.new do
+        include Workflow::Action
+
+        expects :x
+
+        def self.name
+          "Single"
+        end
+
+        def call(ctx)
+        end
+      end.new
+
+      result = organizer.describe(action)
+      expect(result.length).to eq(1)
+      expect(result[0][:name]).to eq("Single")
+      expect(result[0][:expects]).to eq([:x])
+    end
+
+    it "uses inspect fallback for anonymous class steps" do
+      step_class = Class.new do
+        def call(ctx)
+          ctx
+        end
+      end
+      step = step_class.new
+
+      result = organizer.describe([step])
+      name = result[0][:name]
+      expect(name).to include("0x")
+      expect(name).to eq(step.inspect)
+      expect(result[0][:expects]).to eq([])
+      expect(result[0][:promises]).to eq([])
+    end
+  end
 end

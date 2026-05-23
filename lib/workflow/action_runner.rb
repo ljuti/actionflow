@@ -6,11 +6,12 @@ module Workflow
       new
     end
 
-    def initialize(before_hooks: [], after_hooks: [], around_hooks: [], logger: nil)
+    def initialize(before_hooks: [], after_hooks: [], around_hooks: [], logger: nil, capture_exceptions: false)
       @before_hooks = before_hooks
       @after_hooks = after_hooks
       @around_hooks = around_hooks
       @logger = logger
+      @capture_exceptions = capture_exceptions
     end
 
     def call(action, ctx)
@@ -25,9 +26,7 @@ module Workflow
 
       run_before_hooks(action, ctx)
 
-      run_around_hooks(action, ctx) do
-        action.call(ctx)
-      end
+      execute_action(action, ctx)
 
       verify_promised_keys!(action, ctx)
       run_after_hooks(action, ctx)
@@ -36,6 +35,24 @@ module Workflow
     end
 
     private
+
+    def execute_action(action, ctx)
+      if @capture_exceptions
+        begin
+          run_around_hooks(action, ctx) do
+            action.call(ctx)
+          end
+        rescue Workflow::FailWithRollback
+          raise
+        rescue => e
+          ctx.fail!(e.message, error_code: e.class.name.to_sym)
+        end
+      else
+        run_around_hooks(action, ctx) do
+          action.call(ctx)
+        end
+      end
+    end
 
     def metadata_for(action)
       action.workflow_metadata

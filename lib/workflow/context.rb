@@ -88,6 +88,22 @@ module Workflow
       raise FailWithRollback
     end
 
+    def method_missing(name, *args)
+      name_string = name.to_s
+
+      if name_string.end_with?("=")
+        self[name_string.delete_suffix("=").to_sym] = args.fetch(0)
+      elsif key?(name)
+        self[name]
+      else
+        super
+      end
+    end
+
+    def respond_to_missing?(name, include_private = false)
+      key?(name.to_s.delete_suffix("=").to_sym) || super
+    end
+
     private
 
     def resolve_alias(key)

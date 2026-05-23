@@ -316,4 +316,79 @@ RSpec.describe Workflow::ActionRunner do
       expect(log_messages.first).to eq("[Workflow] executing MyAction")
     end
   end
+
+  describe "capture_exceptions" do
+    it "converts exceptions to failed contexts when enabled" do
+      runner = described_class.new(capture_exceptions: true)
+      action = make_action(expected: [], promised: []) { |_ctx|
+        raise "Something went wrong"
+      }
+
+      ctx = runner.call(action, Workflow::Context.new)
+      expect(ctx).to be_failure
+      expect(ctx.message).to eq("Something went wrong")
+    end
+
+    it "lets exceptions bubble up when disabled" do
+      runner = described_class.new(capture_exceptions: false)
+      action = make_action(expected: [], promised: []) { |_ctx|
+        raise "Something went wrong"
+      }
+
+      expect {
+        runner.call(action, Workflow::Context.new)
+      }.to raise_error(RuntimeError, "Something went wrong")
+    end
+
+    it "lets exceptions bubble up by default" do
+      runner = described_class.new
+      action = make_action(expected: [], promised: []) { |_ctx|
+        raise "Something went wrong"
+      }
+
+      expect {
+        runner.call(action, Workflow::Context.new)
+      }.to raise_error(RuntimeError, "Something went wrong")
+    end
+
+    it "preserves exception class name as error_code" do
+      runner = described_class.new(capture_exceptions: true)
+      action = make_action(expected: [], promised: []) { |_ctx|
+        raise KeyError, "missing key"
+      }
+
+      ctx = runner.call(action, Workflow::Context.new)
+      expect(ctx.error_code).to eq(:KeyError)
+    end
+
+    it "does not capture FailWithRollback" do
+      runner = described_class.new(capture_exceptions: true)
+      action = make_action(expected: [], promised: []) { |ctx|
+        ctx.fail_with_rollback!("boom")
+      }
+
+      expect {
+        runner.call(action, Workflow::Context.new)
+      }.to raise_error(Workflow::FailWithRollback)
+    end
+
+    it "runs around hooks with correct action when capturing exceptions" do
+      received_action = nil
+      received_ctx = nil
+      hook = ->(action, ctx, &blk) {
+        received_action = action
+        received_ctx = ctx
+        blk.call
+      }
+      runner = described_class.new(capture_exceptions: true, around_hooks: [hook])
+      action = make_action(expected: [], promised: []) { |_ctx|
+        raise "boom"
+      }
+      ctx = Workflow::Context.new
+
+      runner.call(action, ctx)
+      expect(received_action).to eq(action)
+      expect(received_ctx).to eq(ctx)
+    end
+  end
 end

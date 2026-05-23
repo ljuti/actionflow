@@ -38,6 +38,7 @@ module Workflow
 
   module Testing
     autoload :ContextFactory, "workflow/testing/context_factory"
+    autoload :RSpecMatchers, "workflow/testing/rspec_matchers"
   end
 end
 

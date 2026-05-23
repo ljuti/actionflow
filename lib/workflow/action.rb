@@ -46,5 +46,14 @@ module Workflow
     def execute(ctx = Context.new)
       ActionRunner.default.call(self, ctx)
     end
+
+    def describe
+      metadata = workflow_metadata
+      {
+        name: self.class.name,
+        expects: metadata.expected_keys.dup,
+        promises: metadata.promised_keys.dup
+      }
+    end
   end
 end
