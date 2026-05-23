@@ -1,11 +1,7 @@
 ---
 name: mutant-slayer
-description: Kill alive mutations from mutant runs by writing targeted tests or accepting safe simplifications. Classifies each surviving mutation, produces the minimal killing test, and verifies coverage.
-globs:
-  - spec/**/*.rb
-  - lib/workflow/**/*.rb
-  - .mutant.yml
-alwaysApply: false
+description: Kill alive mutations from mutant runs by writing targeted RSpec tests or accepting safe code simplifications. Classifies each surviving mutation, produces the minimal killing test or diff, and verifies mutant coverage.
+condition: Activated when mutant reports alive mutations, when running or reviewing mutation testing results, or when improving test quality against surviving mutants.
 ---
 ## Core responsibilities
 - Identify and explain surviving mutations in Ruby code.
