@@ -1,0 +1,894 @@
+### Install Actionflow via Bundler
+
+Source: https://github.com/ljuti/actionflow
+
+Add Actionflow to your Gemfile and run bundle install. The gem has zero runtime dependencies and requires Ruby >= 3.2.
+
+```ruby
+gem "actionflow"
+```
+
+--------------------------------
+
+### Install Actionflow via RubyGems
+
+Source: https://github.com/ljuti/actionflow
+
+Install the gem directly. Then require it in your application to load the `Workflow` namespace.
+
+```bash
+gem install actionflow
+```
+
+```ruby
+require "actionflow"
+```
+
+--------------------------------
+
+### Define an Action with Expects and Promises
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Actions are ordinary Ruby objects that include `Workflow::Action`. Declare `expects` for keys the context must contain and `promises` for keys the action will produce. The framework verifies the contract at runtime — missing expected keys raise `Workflow::ExpectedKeysMissing`, missing promised keys raise `Workflow::PromisedKeysMissing`.
+
+```ruby
+class ChargeCard
+  include Workflow::Action
+
+  expects :user, :amount
+  promises :charge
+
+  def initialize(payment_gateway:)
+    @payment_gateway = payment_gateway
+  end
+
+  def call(ctx)
+    ctx[:charge] = @payment_gateway.charge(ctx[:user], ctx[:amount])
+  end
+end
+```
+
+--------------------------------
+
+### Define Actions with Default Values
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Use `expects` with `default:` to provide static or callable defaults. Callable defaults receive the context and are evaluated when the key is missing. Defaults are applied before expected-key verification.
+
+```ruby
+class ApplyPromoCode
+  include Workflow::Action
+
+  expects :amount
+  expects :promo_rate, default: 0.0
+  expects :customer_tier, default: ->(ctx) { :standard }
+  promises :adjusted_total
+
+  def call(ctx)
+    ctx[:adjusted_total] = (ctx[:amount] * (1 - ctx[:promo_rate])).round(2)
+  end
+end
+```
+
+--------------------------------
+
+### Define Actions with Instance-Specific Contracts
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Override `#workflow_metadata` on the instance to build contracts from constructor arguments. This is useful for generic, reusable actions whose expected and promised keys vary per instance.
+
+```ruby
+class NormalizeField
+  include Workflow::Action
+
+  def initialize(from:, to:)
+    @from = from
+    @to = to
+  end
+
+  def workflow_metadata
+    @metadata ||= Workflow::ActionMetadata.new(
+      expected_keys: [@from],
+      promised_keys: [@to]
+    )
+  end
+
+  def call(ctx)
+    ctx[@to] = ctx[@from].to_s.strip.downcase
+  end
+end
+
+normalizer = NormalizeField.new(from: :name, to: :normalized_name)
+```
+
+--------------------------------
+
+### Compose Actions with an Organizer
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Organizers compose action objects into a workflow. Include `Workflow::Organizer`, inject action instances through the constructor, and use `with(data).reduce(steps)` to execute. Organizers are plain objects — dependencies go in the constructor, business data goes in the context.
+
+```ruby
+class Checkout
+  include Workflow::Organizer
+
+  def initialize(validate_cart:, charge_card:, send_receipt:)
+    @validate_cart = validate_cart
+    @charge_card = charge_card
+    @send_receipt = send_receipt
+  end
+
+  def call(cart:, user:, amount:)
+    with(cart: cart, user: user, amount: amount).reduce(
+      @validate_cart,
+      @charge_card,
+      @send_receipt
+    )
+  end
+end
+```
+
+--------------------------------
+
+### Run a Workflow and Check Results
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Instantiate the organizer with real dependencies and call it with business data. The returned context supports `success?`, `failure?`, `message`, `error_code`, bracket access for data, and `to_h` for a shallow copy.
+
+```ruby
+checkout = Checkout.new(
+  validate_cart: ValidateCart.new,
+  charge_card: ChargeCard.new(payment_gateway: StripeGateway.new),
+  send_receipt: SendReceipt.new(mailer: ReceiptMailer)
+)
+
+result = checkout.call(cart: cart, user: user, amount: 100)
+
+if result.success?
+  puts result[:charge]
+else
+  puts result.message
+  puts result.error_code
+end
+```
+
+--------------------------------
+
+### Handle Failure with fail!
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Call `ctx.fail!(message, error_code:)` inside an action to stop the pipeline and mark the context as failed. Remaining actions are not executed. The context remains in a failed state (`failure?` returns `true`).
+
+```ruby
+class ValidateOrder
+  include Workflow::Action
+
+  expects :order
+
+  def call(ctx)
+    if ctx[:order][:total] <= 0
+      ctx.fail!("Order total must be positive", error_code: :invalid_order)
+    else
+      ctx[:valid] = true
+    end
+  end
+end
+```
+
+--------------------------------
+
+### Implement Rollback with fail_with_rollback!
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Define `#rollback(ctx)` on actions for compensation logic. When an action calls `ctx.fail_with_rollback!`, the framework runs rollback on all previously executed steps in reverse order. Rollback methods should guard against missing keys with `ctx.key?`.
+
+```ruby
+class ChargeCard
+  include Workflow::Action
+
+  expects :user, :amount
+  promises :charge
+
+  def initialize(payment_gateway:)
+    @payment_gateway = payment_gateway
+  end
+
+  def call(ctx)
+    ctx[:charge] = @payment_gateway.charge(ctx[:user], ctx[:amount])
+  end
+
+  def rollback(ctx)
+    @payment_gateway.refund(ctx[:charge]) if ctx.key?(:charge)
+  end
+end
+
+class AuditStep
+  include Workflow::Action
+
+  expects :charge
+
+  def call(ctx)
+    ctx.fail_with_rollback!("Compliance check failed")
+  end
+end
+```
+
+--------------------------------
+
+### Skip Remaining Actions
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Use `ctx.skip_remaining!` to bail out of the current scope without marking failure, or `ctx.skip_all_remaining!` to skip all nested scopes. The context stays successful (`success?` remains `true`) but `stop_processing?` returns `true`.
+
+```ruby
+class ConditionalSkip
+  include Workflow::Action
+
+  expects :items
+
+  def call(ctx)
+    if ctx[:items].empty?
+      ctx.skip_remaining!("No items to process")
+    else
+      ctx[:processed] = true
+    end
+  end
+end
+```
+
+--------------------------------
+
+### Use Conditional Execution with ReduceIf
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Run steps only when a condition lambda evaluates to true. The condition receives the context. Available as both a direct class and an organizer convenience method.
+
+```ruby
+class MyPipeline
+  include Workflow::Organizer
+
+  def call(order:, notify: false)
+    with(order: order, notify: notify).reduce(
+      ValidateOrder.new,
+      reduce_if(->(ctx) { ctx[:notify] }, [
+        SendNotification.new
+      ])
+    )
+  end
+end
+```
+
+--------------------------------
+
+### Branch with ReduceIfElse
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Execute one of two step arrays based on a condition. Both branches receive the same context.
+
+```ruby
+class TieredDiscount
+  include Workflow::Organizer
+
+  def initialize
+    @gold_discount = ApplyGoldDiscount.new
+    @standard_discount = ApplyStandardDiscount.new
+  end
+
+  def call(order:, tier:)
+    with(order: order, tier: tier).reduce(
+      Workflow::Steps::ReduceIfElse.new(
+        ->(ctx) { ctx[:tier] == :gold },
+        [@gold_discount],
+        [@standard_discount]
+      )
+    )
+  end
+end
+```
+
+--------------------------------
+
+### Iterate Over Collections
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Run steps for each item in a collection. The current item is placed in the context under a key derived from the collection name (e.g., `:items` becomes `:item`). Override with `item_key:`.
+
+```ruby
+class ProcessAllItems
+  include Workflow::Organizer
+
+  def initialize
+    @process = ProcessItem.new
+  end
+
+  def call(items:)
+    with(items: items).reduce(
+      iterate(:items, [@process])
+    )
+  end
+end
+
+# With explicit item key
+iterate(:orders, [ProcessOrder.new], item_key: :order)
+```
+
+--------------------------------
+
+### Loop with ReduceWhile and ReduceUntil
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+`ReduceWhile` loops while a condition is true. `ReduceUntil` loops until a condition is true. Both break early if the context is stopped (failure or skip).
+
+```ruby
+# Retry while attempts remain
+Workflow::Steps::ReduceWhile.new(
+  ->(ctx) { ctx[:attempts] < 3 },
+  [RetryWithBackoff.new]
+)
+
+# Refine until converged
+Workflow::Steps::ReduceUntil.new(
+  ->(ctx) { ctx[:converged] == true },
+  [RefineEstimate.new]
+)
+```
+
+--------------------------------
+
+### Branch on a Value with ReduceCase
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Branch on a value extracted from the context, similar to a switch statement. The value function receives the context. Each branch is an array of steps.
+
+```ruby
+Workflow::Steps::ReduceCase.new(
+  ->(ctx) { ctx[:role] },
+  {
+    admin: [LoadAdminDashboard.new],
+    editor: [LoadEditorDashboard.new],
+    viewer: [LoadViewerDashboard.new]
+  }
+)
+```
+
+--------------------------------
+
+### Inject Data and Aliases into Context
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+`AddToContext` injects key-value pairs. `AddAliases` registers key aliases so that `ctx[:alias]` resolves to `ctx[:original]`. Both are useful as inline steps without defining a full action class.
+
+```ruby
+# Inject static values
+Workflow::Steps::AddToContext.new(status: "pending", retry_count: 0)
+
+# Register aliases
+Workflow::Steps::AddAliases.new(name: :full_name)
+# After this: ctx[:name] resolves to ctx[:full_name]
+```
+
+--------------------------------
+
+### Execute Inline Blocks
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Wrap an inline block as a step. Useful for quick transformations that don't warrant a full action class. Available as both a direct class and an organizer convenience method.
+
+```ruby
+# Using organizer convenience method
+with(data).reduce(
+  execute { |ctx| ctx[:timestamp] = Time.now.utc.to_i; ctx },
+  ProcessData.new
+)
+
+# Using step class directly
+Workflow::Steps::Execute.new(->(ctx) { ctx[:stamp] = Time.now.utc.to_i; ctx })
+```
+
+--------------------------------
+
+### Defer Work with WithCallback
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Run immediate steps, then store a callback for later invocation. The callback is a proc stored in the context under the given key. Call it later with `ctx[:key].call(ctx)`.
+
+```ruby
+Workflow::Steps::WithCallback.new(
+  :on_complete,
+  [PrepareData.new],     # run immediately
+  [SendNotification.new] # stored as callback
+)
+
+# Later:
+ctx[:on_complete].call(ctx)
+```
+
+--------------------------------
+
+### Register Hooks on a Workflow
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Register `before_each`, `after_each`, and `around_each` hooks on the session returned by `with`. Hooks fire for each workflow action (objects with `workflow_metadata`), not for plain lambdas or control-flow steps. Around hooks must call `yield` to continue.
+
+```ruby
+class MyPipeline
+  include Workflow::Organizer
+
+  def call(data:)
+    with(data)
+      .before_each(->(action, ctx) { logger.info("Before #{action.class.name}") })
+      .after_each(->(action, ctx) { logger.info("After #{action.class.name}") })
+      .reduce(step_a, step_b)
+  end
+end
+```
+
+--------------------------------
+
+### Measure Duration with Around Hooks
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Around hooks wrap action execution. They receive the action, context, and a block. Multiple around hooks compose naturally — outer wraps inner wraps action. Use `&blk` parameter or `yield` to continue the chain.
+
+```ruby
+class LogDuration
+  def initialize(logger:)
+    @logger = logger
+  end
+
+  def call(action, ctx)
+    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = yield
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+    @logger.info(action: action.class.name, duration_ms: (elapsed * 1000).round(2))
+    result
+  end
+end
+
+with(data)
+  .around_each(LogDuration.new(logger: logger))
+  .reduce(steps)
+```
+
+--------------------------------
+
+### Configure Actionflow Globally
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Use `Workflow.configure` to set global options. Available settings: `logger` (for framework logging), `localization_adapter` (for translating failure messages), and `strict_context_access` (raise on undefined dynamic accessors).
+
+```ruby
+Workflow.configure do |config|
+  config.logger = Logger.new($stdout)
+  config.localization_adapter = Workflow::Localization::HashAdapter.new(catalog)
+  config.strict_context_access = false
+end
+```
+
+--------------------------------
+
+### Localize Failure Messages with HashAdapter
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Configure a localization adapter to translate `fail!` message keys. `HashAdapter` looks up messages in a hash catalog and falls back to the raw message for unknown keys. `NullAdapter` returns messages unchanged (default behavior when no adapter is set).
+
+```ruby
+catalog = {
+  "charge_card.card_declined" => "Your card was declined. Please try another payment method.",
+  "charge_card.gateway_timeout" => "Payment processing timed out. Please try again."
+}
+
+Workflow.configure do |config|
+  config.localization_adapter = Workflow::Localization::HashAdapter.new(catalog)
+end
+
+# In an action:
+ctx.fail!("charge_card.card_declined")
+# result.message => "Your card was declined. Please try another payment method."
+```
+
+--------------------------------
+
+### Test Actions in Isolation
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Use `#execute(ctx)` to run through the full lifecycle (contract checks, defaults, hooks). Use `#call(ctx)` to bypass the framework and test only raw business logic. Both return the context.
+
+```ruby
+# Full lifecycle (recommended for most tests)
+action = ChargeCard.new(payment_gateway: fake_gateway)
+result = action.execute(Workflow::Context.new(user: user, amount: 100))
+expect(result).to be_success
+expect(result[:charge]).to be_present
+
+# Business logic only (faster, no contract enforcement)
+action = ChargeCard.new(payment_gateway: fake_gateway)
+ctx = Workflow::Context.new(user: user, amount: 100)
+action.call(ctx)
+expect(ctx[:charge]).to be_present
+```
+
+--------------------------------
+
+### Test Organizers End-to-End
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Inject fake dependencies into the organizer and call it with test data. Assert on the returned context's success status, error codes, and data.
+
+```ruby
+checkout = Checkout.new(
+  validate_cart: ValidateCart.new,
+  charge_card: ChargeCard.new(payment_gateway: fake_gateway),
+  send_receipt: SendReceipt.new(mailer: fake_mailer)
+)
+
+result = checkout.call(cart: cart, user: user, amount: 100)
+
+expect(result).to be_success
+expect(result[:charge]).to be_present
+```
+
+--------------------------------
+
+### Build Test Context with ContextFactory
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Use `Workflow::Testing::ContextFactory` to build the context as it would appear just before a specific action runs. Look up by instance or by class. Override specific values with `with(...)` — overrides take precedence over step outputs.
+
+```ruby
+ctx = Workflow::Testing::ContextFactory
+  .make_from(pipeline)
+  .before(ApplyDiscount.new)   # or .before(ApplyDiscount) by class
+  .with(product_id: "p1", discount_percent: 0.5)
+
+# ctx has :product populated by preceding steps
+# :discount_percent is overridden to 0.5
+
+result = ApplyDiscount.new.execute(ctx)
+expect(result[:final_price]).to eq(50.0)
+```
+
+--------------------------------
+
+### Handle Contract Violations
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+The framework raises two exception types for contract violations. `Workflow::ExpectedKeysMissing` when required keys are absent before `#call`. `Workflow::PromisedKeysMissing` when promised keys are absent after `#call` on a successful context. Promised keys are not checked on failed contexts.
+
+```ruby
+# Missing expected key
+begin
+  CalculateDiscount.new.execute(Workflow::Context.new(amount: 100))
+rescue Workflow::ExpectedKeysMissing => e
+  puts e.message  # "Missing expected keys: [:tier]"
+end
+
+# Missing promised key
+begin
+  action.execute(Workflow::Context.new(x: 1))
+rescue Workflow::PromisedKeysMissing => e
+  puts e.message  # "Missing promised keys: [:y]"
+end
+```
+
+--------------------------------
+
+### Context Data Access
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Context wraps a hash with symbolized keys. Use bracket notation for all reads and writes. It tracks success/failure state, skip flags, message, and error code. Aliases allow key remapping so `ctx[:alias]` resolves to `ctx[:original]`.
+
+```APIDOC
+## Workflow::Context Data Access
+
+### Methods
+- `ctx[:key]` — read a value
+- `ctx[:key] = value` — write a value
+- `ctx.key?(:key)` — check existence
+- `ctx.keys` — array of symbol keys
+- `ctx.to_h` — shallow copy of the underlying hash
+- `ctx.success?` / `ctx.failure?` — pipeline status
+- `ctx.message` — failure or skip message
+- `ctx.error_code` — structured error identifier
+- `ctx.stop_processing?` — true if failed or skipped
+
+### Usage
+
+```ruby
+ctx = Workflow::Context.new(order_id: "ord_123")
+ctx[:total] = 99.95
+
+ctx[:total]           # 99.95
+ctx.key?(:total)      # true
+ctx.keys              # [:order_id, :total]
+ctx.success?          # true
+ctx.message           # nil
+```
+```
+
+--------------------------------
+
+### Register AI Capabilities
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+Wrap actions with `Workflow::Ai::Capability` to expose metadata safe for AI agents. Capabilities carry `expects`, `promises`, `side_effects`, `risk` level, and approval requirements. Register them in a `CapabilityRegistry`. Use `to_description` to get a hash without the action reference.
+
+```ruby
+registry = Workflow::Ai::CapabilityRegistry.new
+
+registry.register(Workflow::Ai::Capability.new(
+  :find_order,
+  action: FindOrder.new(order_repository: repo),
+  description: "Finds an order by order_id.",
+  expects: [:order_id],
+  promises: [:order],
+  side_effects: [],
+  risk: :low
+))
+
+registry.register(Workflow::Ai::Capability.new(
+  :issue_refund,
+  action: IssueRefund.new(payment_gateway: gateway),
+  description: "Issues a refund for a validated order.",
+  expects: [:order, :valid],
+  promises: [:refund_id],
+  side_effects: [:payment_refund],
+  risk: :high,
+  requires_approval: true
+))
+
+registry.descriptions  # array of sanitized hashes for agent consumption
+```
+
+--------------------------------
+
+### Validate an AI-Generated Plan
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+`PlanValidator` simulates key flow without executing actions. It checks that all step IDs are registered and that all expected keys are available at each step. Returns a `ValidationResult` with `safe?`, `errors`, and `requires_approval?`.
+
+```ruby
+plan = Workflow::Ai::Plan.new({
+  "name" => "refund_order",
+  "steps" => [
+    {"id" => "find_order"},
+    {"id" => "validate_order"},
+    {"id" => "issue_refund"}
+  ]
+})
+
+validator = Workflow::Ai::PlanValidator.new(registry: registry)
+result = validator.validate(plan, initial_keys: [:order_id])
+
+result.safe?               # true / false
+result.errors              # array of error strings
+result.requires_approval?  # true if any high-risk step is included
+```
+
+--------------------------------
+
+### Compile and Execute an AI Plan
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+`PlanCompiler` turns a validated plan into executable step objects. Linear steps resolve to action objects, conditionals to `ReduceIfElse`, iterations to `Iterate`. `DynamicOrganizer` executes compiled plans using the standard runtime.
+
+```ruby
+compiler = Workflow::Ai::PlanCompiler.new(registry: registry)
+steps = compiler.compile(plan)
+
+organizer = Workflow::Ai::DynamicOrganizer.new(
+  steps: steps,
+  before_hooks: [AuditHook.new]
+)
+
+result = organizer.call(order_id: "ord_123")
+
+result.success?  # => true
+result[:order]   # => {id: "ord_123", ...}
+result[:refund_id]
+```
+
+--------------------------------
+
+### Compose Nested Control Flow
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+All control-flow steps compose naturally inside an organizer. ReduceIf, Iterate, ReduceIfElse, and other steps can be nested to express complex workflows. Use organizer convenience methods (`reduce_if`, `iterate`, `execute`) or step classes directly.
+
+```ruby
+class OrderPipeline
+  include Workflow::Organizer
+
+  def initialize
+    @fetch = FetchItems.new
+    @process_urgent = ProcessUrgent.new
+    @process_normal = ProcessNormal.new
+    @notify_empty = NotifyEmpty.new
+  end
+
+  def call(data)
+    with(data).reduce(
+      @fetch,
+      reduce_if(->(ctx) { ctx[:items].empty? }, [
+        @notify_empty
+      ]),
+      iterate(:items, [
+        Workflow::Steps::ReduceIfElse.new(
+          ->(ctx) { ctx[:item][:urgent] },
+          [@process_urgent],
+          [@process_normal]
+        )
+      ])
+    )
+  end
+end
+```
+
+--------------------------------
+
+### Action Lifecycle and Execution Model
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/ARCHITECTURE.md
+
+When an organizer calls `reduce`, the Reducer iterates over steps. For workflow actions (objects responding to `workflow_metadata`), the `ActionRunner` applies defaults, verifies expected keys, runs before hooks, runs around hooks (wrapping `action.call(ctx)`), verifies promised keys on success, then runs after hooks. Control-flow steps and plain callables are invoked directly via `step.call(ctx)`.
+
+```APIDOC
+## Action Execution Lifecycle
+
+### Per-step execution order
+1. `ctx.stop_processing?` check — skip if already failed/skipped
+2. `ctx.current_step = action` — set current step reference
+3. Apply defaults for missing expected keys
+4. Verify all expected keys present (raise `ExpectedKeysMissing`)
+5. Run `before_each` hooks
+6. Run `around_each` hooks (wrapping `action.call(ctx)`)
+7. Verify promised keys present if context is successful (raise `PromisedKeysMissing`)
+8. Run `after_each` hooks
+
+### Methods
+- `action.execute(ctx)` — full lifecycle (use in tests)
+- `action.call(ctx)` — raw business logic only
+- `ctx.stop_processing?` — checked before each step in the reducer
+
+### Key invariants
+- Dependencies (services, gateways) go in the action constructor, never in the context
+- Business data flows through the context via `ctx[:key]` bracket notation
+- The pipeline calls `#execute`, not `#call` — `#call` is the raw business method
+- Hooks fire only for workflow actions, not for plain lambdas or control-flow steps
+```
+
+--------------------------------
+
+### Actionflow Error Reference
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+The gem defines three error classes under the `Workflow` namespace. `ExpectedKeysMissing` and `PromisedKeysMissing` are raised by the ActionRunner during contract enforcement. `FailWithRollback` is raised internally by `ctx.fail_with_rollback!` and caught by the Reducer to trigger reverse-order rollback.
+
+```APIDOC
+## Error Reference
+
+### Workflow::ExpectedKeysMissing
+Raised when an action's `expects` keys are not present in the context before `#call` runs.
+
+### Workflow::PromisedKeysMissing
+Raised when an action's `promises` keys are not set after `#call` on a successful context. Not raised when the context has failed.
+
+### Workflow::FailWithRollback
+Raised internally by `ctx.fail_with_rollback!`. The Reducer catches this exception and runs `#rollback(ctx)` on all previously executed steps in reverse order.
+```
+
+--------------------------------
+
+### Actionflow Namespace and Module Structure
+
+Source: https://github.com/ljuti/actionflow/blob/main/docs/developer-guide.md
+
+All functionality lives under the `Workflow` namespace. The gem is required as `require "actionflow"`. Core types are autoloaded. Optional modules (`Ai`, `Testing`) are available but not required for basic usage.
+
+```APIDOC
+## Namespace Structure
+
+### Core (always available)
+- `Workflow::Context` — data carrier with success/failure/skip tracking
+- `Workflow::Action` — module to include in action classes
+- `Workflow::ActionMetadata` — stores expects/promises/defaults
+- `Workflow::ActionRunner` — executes the full action lifecycle
+- `Workflow::Organizer` — module to include in organizer classes
+- `Workflow::OrganizerSession` — accumulates hooks, runs reduce
+- `Workflow::Reducer` — iterates steps, handles rollback
+- `Workflow::RollbackStrategy` — runs rollback in reverse order
+- `Workflow::Configuration` — singleton config (logger, localization)
+- `Workflow::Localization` — NullAdapter and HashAdapter
+
+### Control-Flow Steps (Workflow::Steps)
+- `ReduceIf` — conditional execution
+- `ReduceIfElse` — conditional branching
+- `ReduceWhile` — loop while true
+- `ReduceUntil` — loop until true
+- `ReduceCase` — switch on a value
+- `Iterate` — loop over a collection
+- `Execute` — inline block
+- `AddToContext` — inject key-value pairs
+- `AddAliases` — register key aliases
+- `WithCallback` — defer work for later
+
+### AI Module (Workflow::Ai — optional)
+- `Capability` — action wrapper with agent-safe metadata
+- `CapabilityRegistry` — register and look up capabilities
+- `Plan` — structured workflow plan from an agent
+- `PlanValidator` — simulate key flow, check safety
+- `PlanCompiler` — compile plan into executable steps
+- `DynamicOrganizer` — execute compiled plans
+
+### Testing (Workflow::Testing)
+- `ContextFactory` — build context as it appears before a target action
+
+### Errors
+- `Workflow::ExpectedKeysMissing`
+- `Workflow::PromisedKeysMissing`
+- `Workflow::FailWithRollback`
+```
+
+--------------------------------
+
+### Full Example: E-Commerce Checkout with Rollback
+
+Source: https://github.com/ljuti/actionflow/blob/main/examples/03_failure_and_rollback.rb
+
+A complete example showing a multi-step checkout workflow with rollback support. Each action defines `#rollback(ctx)` for compensation. The `AuditCompliance` action demonstrates `fail_with_rollback!` which triggers reverse-order rollback of all previously executed steps.
+
+```ruby
+class PlaceOrder
+  include Workflow::Organizer
+
+  def initialize(inventory:, gateway:, shipping:, audit:)
+    @reserve = ReserveInventory.new(inventory: inventory)
+    @charge = ChargePayment.new(gateway: gateway)
+    @ship = ShipOrder.new(shipping: shipping)
+    @audit = AuditCompliance.new(audit_service: audit)
+  end
+
+  def call(user:, item_id:, quantity:, amount:)
+    with(user: user, item_id: item_id, quantity: quantity, amount: amount)
+      .reduce(@reserve, @charge, @audit, @ship)
+  end
+end
+
+result = PlaceOrder.new(inventory: inv, gateway: gw, shipping: shp, audit: aud)
+  .call(user: "alice", item_id: "sku-1", quantity: 2, amount: 49.99)
+
+result.success?           # true on success
+result[:reservation]      # set by ReserveInventory
+result[:charge_id]        # set by ChargePayment
+result[:tracking_number]  # set by ShipOrder
+```
