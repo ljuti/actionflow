@@ -264,4 +264,56 @@ RSpec.describe Workflow::ActionRunner do
       expect { r.call(action, ctx) }.not_to raise_error
     end
   end
+
+  describe "logging" do
+    it "logs action execution via logger" do
+      log_messages = []
+      logger = ->(msg) { log_messages << msg }
+      r = described_class.new(logger: logger)
+
+      action = make_action { |ctx| ctx }
+      r.call(action, Workflow::Context.new)
+
+      expect(log_messages).not_to be_empty
+      expect(log_messages.first).to match(/executing/)
+    end
+
+    it "includes action class name in log" do
+      log_messages = []
+      logger = ->(msg) { log_messages << msg }
+      r = described_class.new(logger: logger)
+
+      action = make_action { |ctx| ctx }
+      r.call(action, Workflow::Context.new)
+
+      expect(log_messages.first).to match(/Double/)
+    end
+
+    it "does not log when no logger configured" do
+      r = described_class.new(logger: nil)
+      action = make_action { |ctx| ctx }
+      expect { r.call(action, Workflow::Context.new) }.not_to raise_error
+    end
+
+    it "logs the action class name, not the class object" do
+      log_messages = []
+      logger = ->(msg) { log_messages << msg }
+      r = described_class.new(logger: logger)
+
+      action = Class.new do
+        include Workflow::Action
+
+        def call(ctx)
+        end
+
+        def self.name
+          "MyAction"
+        end
+      end.new
+
+      r.call(action, Workflow::Context.new)
+
+      expect(log_messages.first).to eq("[Workflow] executing MyAction")
+    end
+  end
 end

@@ -18,6 +18,8 @@ module Workflow
 
       ctx.current_step = action
 
+      log("executing #{action.class.name}")
+
       apply_defaults(action, ctx)
       verify_expected_keys!(action, ctx)
 
@@ -73,6 +75,12 @@ module Workflow
       end
 
       chain.call
+    end
+
+    def log(message)
+      return unless @logger
+
+      @logger.call("[Workflow] #{message}")
     end
   end
 end

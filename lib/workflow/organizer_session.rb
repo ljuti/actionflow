@@ -25,11 +25,13 @@ module Workflow
     end
 
     def reduce(*steps)
+      config = Workflow.configuration
+
       runner = ActionRunner.new(
-        before_hooks: @before_hooks,
-        after_hooks: @after_hooks,
-        around_hooks: @around_hooks,
-        logger: Workflow.configuration.logger
+        before_hooks: config.before_hooks + @before_hooks,
+        after_hooks: config.after_hooks + @after_hooks,
+        around_hooks: config.around_hooks + @around_hooks,
+        logger: config.logger
       )
 
       reducer = Reducer.new(action_runner: runner)

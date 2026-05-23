@@ -2,7 +2,14 @@
 
 module Workflow
   class Configuration
-    attr_accessor :logger, :localization_adapter
+    attr_accessor :logger, :localization_adapter,
+      :before_hooks, :after_hooks, :around_hooks
+
+    def initialize
+      @before_hooks = []
+      @after_hooks = []
+      @around_hooks = []
+    end
   end
 
   class << self

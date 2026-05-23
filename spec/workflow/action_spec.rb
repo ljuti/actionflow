@@ -193,4 +193,50 @@ RSpec.describe Workflow::Action do
       expect(result[:normalized]).to eq("ALICE")
     end
   end
+
+  describe "reserved keys" do
+    it "raises when expects includes a reserved key" do
+      expect {
+        Class.new {
+          include Workflow::Action
+
+          expects :message
+        }
+      }.to raise_error(ArgumentError, /reserved key.*:message/)
+    end
+
+    it "raises when promises includes a reserved key" do
+      expect {
+        Class.new {
+          include Workflow::Action
+
+          promises :error_code
+        }
+      }.to raise_error(ArgumentError, /reserved key.*:error_code/)
+    end
+
+    it "raises for all reserved keys in expects" do
+      %i[message error_code current_step organized_by].each do |key|
+        expect {
+          Class.new {
+            include Workflow::Action
+
+            expects key
+          }
+        }.to raise_error(ArgumentError, /reserved key/)
+      end
+    end
+
+    it "raises for all reserved keys in promises" do
+      %i[message error_code current_step organized_by].each do |key|
+        expect {
+          Class.new {
+            include Workflow::Action
+
+            promises key
+          }
+        }.to raise_error(ArgumentError, /reserved key/)
+      end
+    end
+  end
 end

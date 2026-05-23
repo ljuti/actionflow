@@ -13,6 +13,18 @@ RSpec.describe Workflow::Configuration do
     expect(config.localization_adapter).to be_nil
   end
 
+  it "has empty before_hooks by default" do
+    expect(config.before_hooks).to eq([])
+  end
+
+  it "has empty after_hooks by default" do
+    expect(config.after_hooks).to eq([])
+  end
+
+  it "has empty around_hooks by default" do
+    expect(config.around_hooks).to eq([])
+  end
+
   it "allows setting logger" do
     logger = instance_double("Logger")
     config.logger = logger
@@ -24,11 +36,28 @@ RSpec.describe Workflow::Configuration do
     config.localization_adapter = adapter
     expect(config.localization_adapter).to eq(adapter)
   end
+
+  it "allows setting before_hooks" do
+    hook = ->(*_) {}
+    config.before_hooks = [hook]
+    expect(config.before_hooks).to eq([hook])
+  end
+
+  it "allows setting after_hooks" do
+    hook = ->(*_) {}
+    config.after_hooks = [hook]
+    expect(config.after_hooks).to eq([hook])
+  end
+
+  it "allows setting around_hooks" do
+    hook = ->(*_, &blk) { blk.call }
+    config.around_hooks = [hook]
+    expect(config.around_hooks).to eq([hook])
+  end
 end
 
 RSpec.describe "Workflow.configuration" do
   after do
-    # Reset to defaults after each test
     Workflow.instance_variable_set(:@configuration, nil)
   end
 

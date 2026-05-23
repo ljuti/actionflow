@@ -285,5 +285,20 @@ RSpec.describe Workflow::Reducer do
       expect(received_ctx).to equal(input)
       expect(received_ctx[:marker]).to eq(true)
     end
+
+    it "breaks immediately after rollback, not on next iteration" do
+      invocations_after_rollback = 0
+
+      s1 = Object.new
+      s1.define_singleton_method(:call) { |ctx| ctx.fail_with_rollback!("boom") }
+
+      s2 = ->(ctx) {
+        invocations_after_rollback += 1
+        ctx
+      }
+
+      reducer.reduce(Workflow::Context.new, [s1, s2])
+      expect(invocations_after_rollback).to eq(0)
+    end
   end
 end

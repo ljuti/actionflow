@@ -100,6 +100,100 @@ RSpec.describe Workflow::OrganizerSession do
     expect(result[:two]).to eq(true)
   end
 
+  it "applies global hooks from Configuration" do
+    hook_log = []
+    global_hook = ->(action, _ctx) { hook_log << :global_before }
+
+    begin
+      Workflow.configuration.before_hooks = [global_hook]
+
+      action = Class.new {
+        include Workflow::Action
+
+        expects :input
+        def call(ctx)
+        end
+      }.new
+
+      session.reduce([action])
+      expect(hook_log).to eq([:global_before])
+    ensure
+      Workflow.configuration.before_hooks = []
+    end
+  end
+
+  it "applies global hooks combined with session hooks" do
+    hook_log = []
+    global_hook = ->(action, _ctx) { hook_log << :global }
+    session_hook = ->(action, _ctx) { hook_log << :session }
+
+    begin
+      Workflow.configuration.before_hooks = [global_hook]
+
+      action = Class.new {
+        include Workflow::Action
+
+        expects :input
+        def call(ctx)
+        end
+      }.new
+
+      session.before_each(session_hook)
+      session.reduce([action])
+      expect(hook_log).to eq(%i[global session])
+    ensure
+      Workflow.configuration.before_hooks = []
+    end
+  end
+
+  it "applies global after_hooks from Configuration" do
+    hook_log = []
+    global_hook = ->(action, _ctx) { hook_log << :global_after }
+
+    begin
+      Workflow.configuration.after_hooks = [global_hook]
+
+      action = Class.new {
+        include Workflow::Action
+
+        expects :input
+        def call(ctx)
+        end
+      }.new
+
+      session.reduce([action])
+      expect(hook_log).to eq([:global_after])
+    ensure
+      Workflow.configuration.after_hooks = []
+    end
+  end
+
+  it "applies global around_hooks from Configuration" do
+    hook_log = []
+    global_hook = ->(action, _ctx, &blk) {
+      hook_log << :global_around_before
+      blk.call
+      hook_log << :global_around_after
+    }
+
+    begin
+      Workflow.configuration.around_hooks = [global_hook]
+
+      action = Class.new {
+        include Workflow::Action
+
+        expects :input
+        def call(ctx)
+        end
+      }.new
+
+      session.reduce([action])
+      expect(hook_log).to eq(%i[global_around_before global_around_after])
+    ensure
+      Workflow.configuration.around_hooks = []
+    end
+  end
+
   it "passes configured logger to ActionRunner" do
     test_logger = Object.new
     original_logger = Workflow.configuration.logger

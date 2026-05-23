@@ -234,10 +234,24 @@ ActionRunner.new(
 )
 ```
 
-### 6.2 Reserved keys
+### 6.2 Logging
+
+When a `logger` is provided, `ActionRunner` logs action execution:
+```
+[Workflow] executing ChargeCard
+```
+
+The logger must respond to `#call(message)`. Configure globally:
+```ruby
+Workflow.configure do |c|
+  c.logger = ->(msg) { Rails.logger.info(msg) }
+end
+```
+
+### 6.3 Reserved keys
 
 The following context keys are reserved and must not appear in `expects` or
-`promises`:
+`promises`. Using them raises `ArgumentError` at class definition time:
 
 - `:message`
 - `:error_code`
@@ -262,6 +276,7 @@ The reducer dispatches each step based on its type:
 When `ctx.fail_with_rollback!` raises `FailWithRollback`, the reducer:
 1. Catches the exception.
 2. Iterates executed steps in **reverse order**, calling `#rollback(ctx)` on each that responds to it.
+3. Breaks out of the step loop immediately.
 
 ---
 
@@ -334,9 +349,10 @@ Hooks are plain objects:
 
 ### 10.1 Registration levels
 
-1. **Global** — `Workflow.configuration.before_hooks`
-2. **Organizer** — set on organizer class or instance
-3. **Session** — `session.before_each(hook)` before `.reduce`
+1. **Global** — `Workflow.configuration.before_hooks` / `after_hooks` / `around_hooks`
+2. **Session** — `session.before_each(hook)` before `.reduce`
+
+Global hooks are prepended to session hooks, so global hooks run first.
 
 ### 10.2 Around hook chaining
 
