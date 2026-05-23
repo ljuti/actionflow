@@ -16,28 +16,30 @@ module Workflow
       end
     end
 
-    class ExpectKeysMatcher
-      def initialize(expected)
+    class ContractMatcher
+      def initialize(expected, label, key_accessor)
         @expected = expected
+        @label = label
+        @key_accessor = key_accessor
       end
 
       def matches?(actual)
         metadata = extract_metadata(actual)
-        @actual_keys = metadata.expected_keys
-        @missing = @expected - @actual_keys
-        @extra = @actual_keys - @expected
+        actual_keys = metadata.send(@key_accessor)
+        @missing = @expected - actual_keys
+        @extra = actual_keys - @expected
         @missing.empty? && @extra.empty?
       end
 
       def failure_message
-        msg = "expected action to expect keys #{@expected.inspect}"
+        msg = "expected action to #{@label} #{@expected.inspect}"
         msg += "\n  missing: #{@missing.inspect}" unless @missing.empty?
         msg += "\n  extra: #{@extra.inspect}" unless @extra.empty?
         msg
       end
 
       def description
-        "expect keys #{@expected.inspect}"
+        "#{@label} #{@expected.inspect}"
       end
 
       private
@@ -53,40 +55,15 @@ module Workflow
       end
     end
 
-    class PromiseKeysMatcher
+    class ExpectKeysMatcher < ContractMatcher
       def initialize(expected)
-        @expected = expected
+        super(expected, "expect keys", :expected_keys)
       end
+    end
 
-      def matches?(actual)
-        metadata = extract_metadata(actual)
-        @actual_keys = metadata.promised_keys
-        @missing = @expected - @actual_keys
-        @extra = @actual_keys - @expected
-        @missing.empty? && @extra.empty?
-      end
-
-      def failure_message
-        msg = "expected action to promise keys #{@expected.inspect}"
-        msg += "\n  missing: #{@missing.inspect}" unless @missing.empty?
-        msg += "\n  extra: #{@extra.inspect}" unless @extra.empty?
-        msg
-      end
-
-      def description
-        "promise keys #{@expected.inspect}"
-      end
-
-      private
-
-      def extract_metadata(actual)
-        if actual.respond_to?(:workflow_metadata)
-          actual.workflow_metadata
-        elsif actual.is_a?(Class) && actual.respond_to?(:workflow_metadata)
-          actual.workflow_metadata
-        else
-          raise ArgumentError, "expected an action, got #{actual.inspect}"
-        end
+    class PromiseKeysMatcher < ContractMatcher
+      def initialize(expected)
+        super(expected, "promise keys", :promised_keys)
       end
     end
 

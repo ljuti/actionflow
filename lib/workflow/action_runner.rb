@@ -37,21 +37,13 @@ module Workflow
     private
 
     def execute_action(action, ctx)
-      if @capture_exceptions
-        begin
-          run_around_hooks(action, ctx) do
-            action.call(ctx)
-          end
-        rescue Workflow::FailWithRollback
-          raise
-        rescue => e
-          ctx.fail!(e.message, error_code: e.class.name.to_sym)
-        end
-      else
-        run_around_hooks(action, ctx) do
-          action.call(ctx)
-        end
-      end
+      run_around_hooks(action, ctx) { action.call(ctx) }
+    rescue Workflow::FailWithRollback
+      raise
+    rescue => e
+      raise unless @capture_exceptions
+
+      ctx.fail!(e.message, error_code: e.class.name.to_sym)
     end
 
     def metadata_for(action)
