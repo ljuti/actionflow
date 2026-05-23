@@ -31,6 +31,10 @@
 | §29 | PlanValidator (recursive validation, nested control-flow, branch key tracking) | `lib/workflow/ai/plan_validator.rb` |
 | §30 | PlanCompiler | `lib/workflow/ai/plan_compiler.rb` |
 | §32 | DynamicOrganizer | `lib/workflow/ai/dynamic_organizer.rb` |
+| §31 | Policy (block/object/composite, deny_all/allow_all) | `lib/workflow/ai/policy.rb` |
+| §31 | ApprovalGate (approval result, control-flow walk) | `lib/workflow/ai/approval_gate.rb` |
+| §31 | AuditTrail (execution tracking, timestamps, audit record) | `lib/workflow/ai/audit_trail.rb` |
+| §31 | DryRunRunner (plan analysis without execution) | `lib/workflow/ai/dry_run_runner.rb` |
 
 ---
 
@@ -74,27 +78,27 @@
 
 ---
 
-## Gaps — Out of Scope (Optional Module / Rails)
+## Implemented — Rails & AI Safety
 
-### 9. Rails generators
+### 9. Rails generators ✅
 - **Section:** §19
-- **Status:** ❌ Not applicable to a standalone gem.
+- Published as separate `actionflow-rails` gem. Railtie + `workflow:action` / `workflow:organizer` generators.
 
-### 10. AI: Policy
+### 10. AI: Policy ✅
 - **Section:** §31
-- **Status:** ❌ File does not exist. Listed in AGENTS.md layout.
+- `Policy.new(block)` or `Policy.new(object)` or `Policy.new([p1, p2])` for composite AND. `Policy.deny_all` / `Policy.allow_all`. 100% mutation coverage.
 
-### 11. AI: ApprovalGate
+### 11. AI: ApprovalGate ✅
 - **Section:** §31
-- **Status:** ❌ File does not exist. Listed in AGENTS.md layout.
+- `ApprovalGate.new(registry:).check(validation, plan)` → `Result` with `required?`, `pending_steps`, `reason`, `to_h`. Walks control-flow branches. 100% on public API.
 
-### 12. AI: AuditTrail
+### 12. AI: AuditTrail ✅
 - **Section:** §31
-- **Status:** ❌ File does not exist. Listed in AGENTS.md layout.
+- `AuditTrail.new(agent_id:, user_id:)` tracks executed/skipped/failed steps and approvals. `finalize(plan:, validation:, result:)` produces complete audit record with timestamps. 100% mutation coverage.
 
-### 13. AI: DryRunRunner
+### 13. AI: DryRunRunner ✅
 - **Section:** §31
-- **Status:** ❌ File does not exist. Listed in AGENTS.md layout.
+- `DryRunRunner.new(registry:).analyze(plan, initial_keys:)` reports steps, side_effects, risks, approvals_required, rollback_available, missing_keys, errors. Walks control-flow branches with key propagation. 100% on public API.
 
 ---
 

@@ -34,6 +34,10 @@ module Workflow
     autoload :PlanValidator, "workflow/ai/plan_validator"
     autoload :PlanCompiler, "workflow/ai/plan_compiler"
     autoload :DynamicOrganizer, "workflow/ai/dynamic_organizer"
+    autoload :Policy, "workflow/ai/policy"
+    autoload :DryRunRunner, "workflow/ai/dry_run_runner"
+    autoload :ApprovalGate, "workflow/ai/approval_gate"
+    autoload :AuditTrail, "workflow/ai/audit_trail"
   end
 
   module Testing
