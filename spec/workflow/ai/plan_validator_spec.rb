@@ -701,10 +701,9 @@ RSpec.describe Workflow::Ai::PlanValidator do
     expect(error).not_to include("[:order_id, :order_id]")
   end
 
-  it "else branch key promises do not leak to outer steps" do
+  it "else branch key promises propagate to subsequent steps" do
     # The else branch has find_order which promises :order
-    # But only then branch keys propagate via track_step_keys
-    # So :order should NOT be available after the if_else
+    # Both branches' promised keys are tracked (union), so :order IS available
     plan = Workflow::Ai::Plan.new({
       "name" => "test",
       "steps" => [
@@ -717,10 +716,57 @@ RSpec.describe Workflow::Ai::PlanValidator do
     })
 
     result = validator.validate(plan, initial_keys: [:order_id])
-    # validate_order expects :order, which should NOT be available
-    # because else branch keys don't propagate (only then via track_step_keys)
+    expect(result).to be_safe
+  end
+
+  it "high-risk step in if branch triggers approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [{"id" => "issue_refund"}]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order])
+    expect(result.requires_approval?).to eq(true)
+  end
+
+  it "high-risk step in iterate triggers approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "iterate",
+         "collection" => "orders",
+         "as" => "order",
+         "steps" => [{"id" => "issue_refund"}]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    expect(result.requires_approval?).to eq(true)
+  end
+
+  it "validates nested if inside iterate" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "iterate",
+         "collection" => "orders",
+         "as" => "order",
+         "steps" => [
+           {"type" => "if",
+            "condition" => {"key" => "valid", "equals" => true},
+            "then" => [{"id" => "find_order"}]}
+         ]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    # find_order expects :order_id, not provided by iterate (only :order is)
     expect(result).not_to be_safe
-    expect(result.errors).to include(a_string_matching(/validate_order.*missing expected keys.*:order/))
+    expect(result.errors).to include(a_string_matching(/find_order/))
   end
 
   it "then branch with false then value skips track_step_keys" do
@@ -759,5 +805,122 @@ RSpec.describe Workflow::Ai::PlanValidator do
     # Without .dup on then, validate_order would incorrectly see :order
     expect(result).not_to be_safe
     expect(result.errors).to include(a_string_matching(/validate_order/))
+  end
+
+  # === Nested control-flow: key propagation across levels ===
+
+  it "keys from nested if_else propagate to steps after outer if" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "flag", "equals" => true},
+         "then" => [
+           {"type" => "if_else",
+            "condition" => {"key" => "sub_flag", "equals" => true},
+            "then" => [{"id" => "find_order"}],
+            "else" => []}
+         ]},
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    # find_order (nested in if > if_else > then) promises :order
+    # :order should propagate through both levels to validate_order
+    expect(result).to be_safe
+  end
+
+  it "high-risk step in else branch triggers approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [],
+         "else" => [{"id" => "issue_refund"}]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order])
+    expect(result.requires_approval?).to eq(true)
+  end
+
+  it "keys from nested if_else else branch propagate to outer flow" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "flag", "equals" => true},
+         "then" => [],
+         "else" => [{"id" => "find_order"}]},
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  it "iterate inner steps see keys from outer flow" do
+    # find_order expects :order_id (from initial_keys), inside an iterate
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "iterate",
+         "collection" => "items",
+         "as" => "item",
+         "steps" => [{"id" => "find_order"}]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  it "iterate preserves existing keys when item_key overlaps" do
+    # item_key :order_id is already in initial_keys — | and ^ differ here
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "iterate",
+         "collection" => "items",
+         "as" => "order_id",
+         "steps" => [{"id" => "find_order"}]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  it "keys from iterate available to subsequent steps" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "iterate",
+         "collection" => "items",
+         "as" => "item",
+         "steps" => [{"id" => "find_order"}]},
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  it "duplicate step does not remove already-promised keys" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"id" => "find_order"},
+        {"id" => "find_order"},
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
   end
 end

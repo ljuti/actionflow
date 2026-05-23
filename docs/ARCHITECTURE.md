@@ -483,7 +483,7 @@ DynamicOrganizer executes with audit + approval
 | `Capability`          | Action + metadata (expects, promises, risk, etc.)|
 | `CapabilityRegistry`  | Stores capabilities, resolves by ID              |
 | `Plan`                | Structured workflow description (JSON schema)    |
-| `PlanValidator`       | Validates contracts, safety, policies            |
+| `PlanValidator`       | Recursive validation: contracts, safety, policies, nested control-flow |
 | `PlanCompiler`        | Compiles plan into executable step objects       |
 | `Policy`              | Per-action permission checks                     |
 | `ApprovalGate`        | Pause for human approval on high-risk steps      |

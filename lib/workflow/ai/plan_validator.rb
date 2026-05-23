@@ -25,61 +25,66 @@ module Workflow
       end
 
       def validate(plan, initial_keys: nil)
-        errors = []
-        available_keys = Set.new(initial_keys)
-        requires_approval = false
-
-        plan.steps.each do |step|
-          case step["type"]
-          when "if", "if_else"
-            # Validate both branches with current key set
-            if step["then"]
-              branch_errors = validate_steps(step.fetch("then"), available_keys.dup)
-              errors.concat(branch_errors)
-            end
-            if step["else"]
-              branch_errors = validate_steps(step.fetch("else"), available_keys.dup)
-              errors.concat(branch_errors)
-            end
-            # For linear flow, take the union of promised keys from both branches
-            (step["then"] || []).each { |s| track_step_keys(s, available_keys) }
-          when "iterate"
-            if step.key?("steps")
-              item_key = (step["as"] || "item").to_sym
-              available_keys << item_key
-              step_errors = validate_steps(step.fetch("steps"), available_keys)
-              errors.concat(step_errors)
-            end
-          else
-            # Linear step
-            step_errors, new_keys, approval = validate_single_step(step, available_keys)
-            errors.concat(step_errors)
-            requires_approval ||= approval
-            new_keys.each { |k| available_keys << k }
-          end
-        end
+        base_keys = Set.new(initial_keys)
+        errors, _result_keys, requires_approval = validate_step_list(plan.steps, base_keys)
 
         ValidationResult.new(errors: errors, requires_approval: requires_approval)
       end
 
       private
 
-      def validate_steps(steps, available_keys)
+      # Returns [errors, result_key_set, requires_approval]
+      # Does not mutate base_keys — branch isolation is free via immutability.
+      def validate_step_list(steps, base_keys)
         errors = []
+        requires_approval = false
+        current_keys = base_keys
 
         steps.each do |step|
-          step_errors, step_new_keys, _ = validate_single_step(step, available_keys)
-          errors.concat(step_errors)
-          step_new_keys.each { |k| available_keys << k }
+          case step["type"]
+          when "if", "if_else"
+            then_steps = step["then"]
+            then_result_keys = current_keys
+            if then_steps
+              then_errors, then_result_keys, then_approval = validate_step_list(then_steps, current_keys)
+              errors.concat(then_errors)
+              requires_approval ||= then_approval
+            end
+
+            else_steps = step["else"]
+            else_result_keys = current_keys
+            if else_steps
+              else_errors, else_result_keys, else_approval = validate_step_list(else_steps, current_keys)
+              errors.concat(else_errors)
+              requires_approval ||= else_approval
+            end
+
+            # Union: keys available after either branch
+            current_keys = then_result_keys | else_result_keys
+          when "iterate"
+            iter_steps = step["steps"]
+            if iter_steps
+              item_key = (step["as"] || "item").to_sym
+              iter_base = current_keys | [item_key]
+              iter_errors, iter_result_keys, iter_approval = validate_step_list(iter_steps, iter_base)
+              errors.concat(iter_errors)
+              requires_approval ||= iter_approval
+              current_keys = iter_result_keys
+            end
+          else
+            step_errors, step_new_keys, approval = validate_single_step(step, current_keys)
+            errors.concat(step_errors)
+            requires_approval ||= approval
+            current_keys |= step_new_keys
+          end
         end
 
-        errors
+        [errors, current_keys, requires_approval]
       end
 
       def validate_single_step(step, available_keys)
         errors = []
         new_keys = []
-        approval = false
 
         id = step["id"]
         if id.nil?
@@ -87,8 +92,8 @@ module Workflow
           return [errors, new_keys]
         end
 
-        begin
-          cap = @registry.fetch(id.to_sym)
+        cap = begin
+          @registry.fetch(id.to_sym)
         rescue KeyError
           errors << "Unknown capability: #{id}"
           return [errors, new_keys]
@@ -101,23 +106,7 @@ module Workflow
 
         cap.promises.each { |k| new_keys << k }
 
-        if cap.requires_approval
-          approval = true
-        end
-
-        [errors, new_keys, approval]
-      end
-
-      def track_step_keys(step, available_keys)
-        id = step["id"]
-        return unless id
-
-        begin
-          cap = @registry.fetch(id.to_sym)
-          cap.promises.each { |k| available_keys << k }
-        rescue KeyError
-          # Ignore — will be caught by main validation
-        end
+        [errors, new_keys, cap.requires_approval]
       end
     end
   end
