@@ -24,7 +24,7 @@ module Workflow
         @registry = registry
       end
 
-      def validate(plan, initial_keys: [])
+      def validate(plan, initial_keys: nil)
         errors = []
         available_keys = Set.new(initial_keys)
         requires_approval = false
@@ -34,20 +34,20 @@ module Workflow
           when "if", "if_else"
             # Validate both branches with current key set
             if step["then"]
-              branch_errors, _ = validate_steps(step["then"], available_keys.dup)
+              branch_errors = validate_steps(step.fetch("then"), available_keys.dup)
               errors.concat(branch_errors)
             end
             if step["else"]
-              branch_errors, _ = validate_steps(step["else"], available_keys.dup)
+              branch_errors = validate_steps(step.fetch("else"), available_keys.dup)
               errors.concat(branch_errors)
             end
             # For linear flow, take the union of promised keys from both branches
             (step["then"] || []).each { |s| track_step_keys(s, available_keys) }
           when "iterate"
-            if step["steps"]
+            if step.key?("steps")
               item_key = (step["as"] || "item").to_sym
               available_keys << item_key
-              step_errors, _ = validate_steps(step["steps"], available_keys)
+              step_errors = validate_steps(step.fetch("steps"), available_keys)
               errors.concat(step_errors)
             end
           else
@@ -66,16 +66,14 @@ module Workflow
 
       def validate_steps(steps, available_keys)
         errors = []
-        new_keys = []
 
         steps.each do |step|
           step_errors, step_new_keys, _ = validate_single_step(step, available_keys)
           errors.concat(step_errors)
           step_new_keys.each { |k| available_keys << k }
-          new_keys.concat(step_new_keys)
         end
 
-        [errors, new_keys]
+        errors
       end
 
       def validate_single_step(step, available_keys)
@@ -85,20 +83,20 @@ module Workflow
 
         id = step["id"]
         if id.nil?
-          errors << "Step missing 'id': #{step.inspect}"
-          return [errors, new_keys, approval]
+          errors << "Step missing 'id': #{step}"
+          return [errors, new_keys]
         end
 
         begin
           cap = @registry.fetch(id.to_sym)
         rescue KeyError
           errors << "Unknown capability: #{id}"
-          return [errors, new_keys, approval]
+          return [errors, new_keys]
         end
 
         missing = cap.expects.reject { |k| available_keys.include?(k) }
         unless missing.empty?
-          errors << "Step '#{id}' missing expected keys: #{missing.inspect}. Available: #{available_keys.to_a.inspect}"
+          errors << "Step '#{id}' missing expected keys: #{missing}. Available: #{available_keys.to_a}"
         end
 
         cap.promises.each { |k| new_keys << k }

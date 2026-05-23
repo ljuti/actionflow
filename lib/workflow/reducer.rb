@@ -17,7 +17,6 @@ module Workflow
         invoke(step, ctx)
       rescue FailWithRollback
         @rollback_strategy.rollback(ctx, executed_steps.reverse)
-        break
       end
 
       ctx

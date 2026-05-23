@@ -57,6 +57,12 @@ RSpec.describe Workflow::Organizer do
     it "returns OrganizerSession" do
       expect(organizer.with({})).to be_a(Workflow::OrganizerSession)
     end
+    it "with accepts Context subclass instances" do
+      sub_ctx = Class.new(Workflow::Context).new(x: 1)
+      result = organizer.with(sub_ctx).reduce([])
+      expect(result).to equal(sub_ctx)
+      expect(result[:x]).to eq(1)
+    end
   end
 
   describe "#reduce" do
@@ -195,6 +201,15 @@ RSpec.describe Workflow::Organizer do
       step = organizer.execute(block)
       step.call(Workflow::Context.new)
       expect(ran).to eq(true)
+    end
+    it "reduce passes steps as individual arguments via splat" do
+      results = []
+      result = organizer.reduce(
+        ->(ctx) { results << :a; ctx },
+        ->(ctx) { results << :b; ctx }
+      )
+      expect(results).to eq(%i[a b])
+      expect(result).to be_success
     end
   end
 end

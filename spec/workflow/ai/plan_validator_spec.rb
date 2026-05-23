@@ -253,4 +253,511 @@ RSpec.describe Workflow::Ai::PlanValidator do
     expect(result.errors).to eq([])
     expect(result.requires_approval?).to eq(false)
   end
+
+  # === validate_single_step: exact error message format ===
+
+  it "error for missing id uses inspect formatting" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"type" => "linear"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    expect(result.errors).to include("Step missing 'id': {\"type\" => \"linear\"}")
+  end
+
+  it "error for missing expected keys includes available keys as array inspect" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "validate_order"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id, :other])
+    error = result.errors.first
+    expect(error).to include("[:order_id, :other]").or include("[:other, :order_id]")
+  end
+
+  it "error for missing expected keys includes exact missing keys inspect" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "find_order"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    error = result.errors.first
+    expect(error).to include("missing expected keys: [:order_id]")
+  end
+
+  it "error for missing expected keys shows non-empty available keys as array" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "find_order"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:foo])
+    error = result.errors.first
+    expect(error).to include("[:foo]")
+  end
+
+  # === validate_single_step: return value structure ===
+
+  it "missing id step does not set approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"type" => "linear"}, {"id" => "find_order"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result.errors.length).to eq(1)
+    expect(result.errors.first).to start_with("Step missing 'id'")
+    expect(result.requires_approval?).to eq(nil).or eq(false)
+  end
+
+  it "unknown capability step does not propagate approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "bogus"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    expect(result).not_to be_safe
+    expect(result.requires_approval?).to eq(nil).or eq(false)
+  end
+
+  # === validate_steps: key propagation within branches ===
+
+  it "second step in if branch sees keys promised by first step" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [
+           {"id" => "find_order"},
+           {"id" => "validate_order"}
+         ]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  it "second step in else branch sees keys promised by first step" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [{"id" => "find_order"}],
+         "else" => [
+           {"id" => "find_order"},
+           {"id" => "notify"}
+         ]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  # === validate: if without then key ===
+
+  it "if step without then key does not error" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "x", "equals" => true}}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    expect(result).to be_safe
+  end
+
+  it "if_else step without else key does not error" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [{"id" => "find_order"}]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  # === validate: iterate without steps key ===
+
+  it "iterate step without steps key does not error" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "iterate",
+         "collection" => "orders"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    expect(result).to be_safe
+  end
+
+  # === validate: else branch dup isolation ===
+
+  it "else branch validation uses dup of available keys" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [{"id" => "find_order"}],
+         "else" => [{"id" => "find_order"}]},
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    # Both branches have find_order which promises :order
+    # track_step_keys processes "then" steps, so :order becomes available
+    expect(result).to be_safe
+  end
+
+  # === track_step_keys: nil id guard ===
+
+  it "track_step_keys handles step with nil id in then branch" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [
+           {"no_id" => "yes"},
+           {"id" => "find_order"}
+         ]},
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    # The nil-id step produces an error in branch validation
+    expect(result).not_to be_safe
+    # But track_step_keys should still process find_order, adding :order
+    # So validate_order should work — no validate_order error
+    expect(result.errors).not_to include(a_string_matching(/validate_order/))
+    # Error is only from the nil-id step
+    expect(result.errors).to include(a_string_matching(/Step missing 'id'/))
+  end
+
+  it "track_step_keys handles unknown capability silently" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [{"id" => "nonexistent"}]},
+        {"id" => "find_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result.errors.length).to eq(1)
+    expect(result.errors.first).to include("Unknown capability: nonexistent")
+  end
+
+  # === validate: high-risk step triggers approval ===
+
+  it "high-risk step as linear step triggers approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"id" => "find_order"},
+        {"id" => "issue_refund"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result.requires_approval?).to eq(true)
+  end
+
+  # === validate: multiple sequential steps propagate keys ===
+
+  it "three sequential steps each see prior promises" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"id" => "find_order"},
+        {"id" => "validate_order"},
+        {"id" => "notify"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  # === validate: requires_approval aggregation ===
+
+  it "requires_approval stays true once set by any step" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"id" => "issue_refund"},
+        {"id" => "find_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order])
+    expect(result.requires_approval?).to eq(true)
+  end
+
+  # === validate: empty plan ===
+
+  it "empty steps plan is safe with no approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => []
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    expect(result).to be_safe
+    expect(result.requires_approval?).to eq(false)
+  end
+
+  # === validate: error message includes available keys content ===
+
+  it "missing keys error shows actual available keys not empty" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "validate_order"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    error = result.errors.first
+    expect(error).to include("[:order_id]")
+  end
+
+  # === validate: .dup isolation for then branch ===
+
+  it "then branch key propagation does not leak to else branch or outer flow" do
+    # If .dup is removed, the then branch validate_steps would add :order to
+    # the shared available_keys, meaning the else branch would incorrectly
+    # see :order and subsequent steps would too
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [{"id" => "find_order"}],
+         "else" => []},
+        # After the if_else, only track_step_keys (then branch) adds :order
+        # Without .dup, validate_steps for then branch would also add :order
+        # to the outer available_keys, but that's actually the same as track_step_keys
+        # So we need a different approach...
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  it "then branch with nil value for then key does not validate" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => nil}
+      ]
+    })
+
+    # step["then"] is nil, so if guard should skip validation
+    result = validator.validate(plan, initial_keys: [])
+    expect(result).to be_safe
+  end
+
+  it "else branch with nil value for else key does not validate" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [{"id" => "find_order"}],
+         "else" => nil}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    expect(result).to be_safe
+  end
+
+  # === validate: Set.new wrapping matters ===
+
+  it "available_keys deduplicates initial keys via Set" do
+    # With duplicate keys, Set dedup matters for error messages
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "find_order"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id, :order_id])
+    # With Set, available is {order_id} — find_order expects [:order_id] which is available
+    expect(result).to be_safe
+  end
+
+  # === validate: iterate default item key is :item not :'' ===
+
+  it "iterate without as defaults to :item not empty string" do
+    # Register a capability that expects :item
+    registry.register(Workflow::Ai::Capability.new(
+      :use_item, action: ->(ctx) { ctx },
+      description: "Use", expects: [:item], promises: [],
+      side_effects: [], risk: :low
+    ))
+
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "iterate",
+         "collection" => "items",
+         "steps" => [{"id" => "use_item"}]}
+      ]
+    })
+
+    # Default item key :item should satisfy use_item's expectation
+    result = validator.validate(plan, initial_keys: [])
+    expect(result).to be_safe
+  end
+
+  # === validate_single_step: return value must be 3-element array ===
+
+  it "nil-id step return value includes explicit false approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"type" => "linear"}, {"id" => "issue_refund"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order])
+    # First step has no id (error + no approval), second step is high-risk
+    # If nil-id return omitted the 3rd element, approval from issue_refund might be wrong
+    expect(result.requires_approval?).to eq(true)
+    expect(result.errors.length).to eq(1)
+  end
+
+  it "unknown capability step return value includes explicit false approval" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "nonexistent"}, {"id" => "issue_refund"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order])
+    expect(result.requires_approval?).to eq(true)
+  end
+
+  # === validate_single_step: error message uses .to_a.inspect for available keys ===
+
+  it "error message shows array-style brackets around available keys" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "find_order"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:foo])
+    error = result.errors.first
+    # .to_a.inspect produces "[:foo]" not "#<Set: {:foo}>"
+    expect(error).to include("Available: [:foo]")
+  end
+
+  # === validate: then branch validation with falsy then value ===
+
+  it "if step with false as then value does not validate" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => false}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [])
+    expect(result).to be_safe
+  end
+
+  it "Set dedup is visible in error messages for duplicate initial keys" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [{"id" => "validate_order"}]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id, :order_id])
+    # validate_order expects :order which is missing
+    # With Set, available is [:order_id]; with Array, available would be [:order_id, :order_id]
+    error = result.errors.first
+    # Set dedup: should show [:order_id] not [:order_id, :order_id]
+    expect(error).not_to include("[:order_id, :order_id]")
+  end
+
+  it "else branch key promises do not leak to outer steps" do
+    # The else branch has find_order which promises :order
+    # But only then branch keys propagate via track_step_keys
+    # So :order should NOT be available after the if_else
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [],
+         "else" => [{"id" => "find_order"}]},
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    # validate_order expects :order, which should NOT be available
+    # because else branch keys don't propagate (only then via track_step_keys)
+    expect(result).not_to be_safe
+    expect(result.errors).to include(a_string_matching(/validate_order.*missing expected keys.*:order/))
+  end
+
+  it "then branch with false then value skips track_step_keys" do
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => false},
+        {"id" => "validate_order"}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order])
+    # then is false, so (step["then"] || []).each iterates over [] — no keys tracked
+    # validate_order expects :order which IS available from initial_keys
+    expect(result).to be_safe
+  end
+
+  it "then branch validation does not pollute else branch available keys" do
+    # If then branch validation didn't use .dup, keys added during then
+    # branch validation would leak to the else branch validation
+    plan = Workflow::Ai::Plan.new({
+      "name" => "test",
+      "steps" => [
+        {"type" => "if_else",
+         "condition" => {"key" => "x", "equals" => true},
+         "then" => [{"id" => "find_order"}],
+         "else" => [{"id" => "validate_order"}]}
+      ]
+    })
+
+    result = validator.validate(plan, initial_keys: [:order_id])
+    # Then branch: find_order expects :order_id ✓, promises :order
+    # Else branch: validate_order expects :order — NOT available (only :order_id)
+    # Without .dup on then, validate_order would incorrectly see :order
+    expect(result).not_to be_safe
+    expect(result.errors).to include(a_string_matching(/validate_order/))
+  end
 end

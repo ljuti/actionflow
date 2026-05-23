@@ -12,7 +12,7 @@ module Workflow
         @around_hooks = around_hooks
       end
 
-      def call(input = {})
+      def call(input = nil)
         session = with(input)
 
         @before_hooks.each { |hook| session.before_each(hook) }

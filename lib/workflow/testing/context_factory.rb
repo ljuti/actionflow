@@ -5,8 +5,6 @@ module Workflow
     class ContextFactory
       def initialize(organizer)
         @organizer = organizer
-        @target = nil
-        @overrides = {}
       end
 
       def self.make_from(organizer)
@@ -27,17 +25,11 @@ module Workflow
 
       def build
         # Seed context with overrides so steps have their expected keys
-        ctx = Workflow::Context.new(@overrides)
-        target_found = false
+        ctx = Context.new(@overrides)
 
         steps = collect_steps(@organizer)
         steps.each do |step|
-          break if target_found
-
-          if matches_target?(step)
-            target_found = true
-            next
-          end
+          break if matches_target?(step)
 
           invoke_step(step, ctx)
         end
@@ -51,7 +43,7 @@ module Workflow
       end
 
       def matches_target?(step)
-        if @target.is_a?(Class)
+        if @target.instance_of?(Class)
           step.is_a?(@target)
         else
           step.equal?(@target)
@@ -60,7 +52,7 @@ module Workflow
 
       def invoke_step(step, ctx)
         if step.respond_to?(:workflow_metadata)
-          Workflow::ActionRunner.default.call(step, ctx)
+          ActionRunner.default.call(step, ctx)
         else
           step.call(ctx)
         end
@@ -74,7 +66,6 @@ module Workflow
         steps = []
         organizer.instance_variables.each do |ivar|
           val = organizer.instance_variable_get(ivar)
-          next if val.is_a?(Workflow::Context)
 
           if val.respond_to?(:call)
             steps << val

@@ -239,4 +239,66 @@ RSpec.describe Workflow::Testing::ContextFactory do
 
     expect(ctx.key?(:done)).to eq(false)
   end
+  it "matches subclasses when targeting a parent class" do
+    stub_const("ParentStep", Class.new {
+      include Workflow::Action
+
+      promises :parent_ran
+
+      def call(ctx)
+        ctx[:parent_ran] = true
+      end
+    })
+
+    stub_const("ChildStep", Class.new(ParentStep) {
+      promises :child_ran
+
+      def call(ctx)
+        ctx[:child_ran] = true
+      end
+    })
+
+    child = ChildStep.new
+    target = ->(ctx) { ctx[:target_ran] = true }
+
+    organizer = Class.new {
+      def initialize(s, tgt)
+        @step = s
+        @target = tgt
+      end
+    }.new(child, target)
+
+    # Targeting ParentStep should match the ChildStep instance (is_a? not instance_of?)
+    ctx = described_class.make_from(organizer).before(ParentStep).with
+
+    expect(ctx.key?(:child_ran)).to eq(false)
+    expect(ctx.key?(:parent_ran)).to eq(false)
+  end
+  it "collects steps from Array subclass ivars" do
+    inner_ran = false
+    inner_step = ->(ctx) {
+      inner_ran = true
+      ctx[:inner] = true
+    }
+
+    target = ->(ctx) { ctx[:done] = true }
+
+    array_subclass = Class.new(Array) {
+      def initialize(items)
+        super(items)
+      end
+    }.new([inner_step])
+
+    organizer = Class.new {
+      def initialize(steps, tgt)
+        @steps = steps
+        @target = tgt
+      end
+    }.new(array_subclass, target)
+
+    ctx = described_class.make_from(organizer).before(target).with
+
+    expect(inner_ran).to eq(true)
+    expect(ctx[:inner]).to eq(true)
+  end
 end

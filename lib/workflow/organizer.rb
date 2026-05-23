@@ -3,13 +3,13 @@
 module Workflow
   module Organizer
     def with(data = nil)
-      ctx = data.is_a?(Workflow::Context) ? data : Workflow::Context.new(data)
+      ctx = data.is_a?(Context) ? data : Context.new(data)
       ctx.organized_by = self
-      Workflow::OrganizerSession.new(self, ctx)
+      OrganizerSession.new(ctx)
     end
 
     def reduce(*steps)
-      with.reduce(*steps)
+      with.reduce(steps)
     end
 
     def reduce_if(condition, steps)

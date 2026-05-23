@@ -11,7 +11,7 @@ module Workflow
 
         @name = raw["name"]
         @input = raw["input"] || {}
-        @steps = raw["steps"]
+        @steps = raw.fetch("steps")
       end
     end
   end

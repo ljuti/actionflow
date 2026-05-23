@@ -2,7 +2,7 @@
 
 module Workflow
   class OrganizerSession
-    def initialize(_organizer, ctx)
+    def initialize(ctx)
       @ctx = ctx
       @before_hooks = []
       @after_hooks = []

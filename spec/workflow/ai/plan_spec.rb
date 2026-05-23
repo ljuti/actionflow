@@ -48,8 +48,16 @@ RSpec.describe Workflow::Ai::Plan do
     expect(step["collection"]).to eq("orders")
   end
 
+  it "raises on plan without steps with descriptive message" do
+    expect { described_class.new({"name" => "empty"}) }.to raise_error(ArgumentError, "Plan must have steps")
+  end
+
   it "raises on plan without steps" do
     expect { described_class.new({"name" => "empty"}) }.to raise_error(ArgumentError)
+  end
+
+  it "raises on non-hash input with descriptive message" do
+    expect { described_class.new("not a hash") }.to raise_error(ArgumentError, "Plan must be a Hash")
   end
 
   it "raises on non-hash input" do
@@ -90,5 +98,12 @@ RSpec.describe Workflow::Ai::Plan do
     raw = {"name" => "my_plan", "steps" => [{"id" => "a"}]}
     plan = described_class.new(raw)
     expect(plan.name).to eq("my_plan")
+  end
+
+  it "returns steps as the exact object from raw hash" do
+    steps = [{"id" => "find_order"}]
+    raw = {"steps" => steps}
+    plan = described_class.new(raw)
+    expect(plan.steps).to equal(steps)
   end
 end

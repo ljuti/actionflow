@@ -3,9 +3,8 @@
 require "actionflow"
 
 RSpec.describe Workflow::OrganizerSession do
-  let(:organizer) { double("organizer") }
   let(:ctx) { Workflow::Context.new(input: 1) }
-  let(:session) { described_class.new(organizer, ctx) }
+  let(:session) { described_class.new(ctx) }
 
   it "reduce returns context" do
     result = session.reduce(->(ctx) { ctx })
